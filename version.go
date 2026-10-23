@@ -4,10 +4,17 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 )
+
+// 只认形如 v0.4.1 / 0.4.1.1 / v0.2.1-rc.2 的 tag。
+// 仓库还没有任何 Release 时，GitHub 会把 /releases/latest 重定向到 /releases，
+// 拿到的最后一段是 "releases"；若不当成版本号处理，版本比较会退化成字符串
+// 比较并误报"有新版本"，而实际没有可下载的东西。
+var appTagVersionRe = regexp.MustCompile(`^v?\d+(\.\d+){1,3}(-[0-9A-Za-z.]+)?$`)
 
 var (
 	cachedAppRemoteVer  string
@@ -73,7 +80,7 @@ func fetchAppRemoteUpdate() {
 		loc := resp.Header.Get("Location")
 		tag := path.Base(loc)
 		rVer := strings.TrimPrefix(strings.TrimSpace(tag), "v")
-		if rVer != "" && rVer != "latest" {
+		if rVer != "" && rVer != "latest" && appTagVersionRe.MatchString(tag) {
 			cachedAppCheckMutex.Lock()
 			oldRemoteVer := cachedAppRemoteVer
 			cachedAppRemoteVer = rVer

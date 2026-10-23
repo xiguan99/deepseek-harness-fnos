@@ -67,8 +67,19 @@
 构建脚本会先做硬校验，任一不通过直接中止：
 
 - 版本一致：`VERSION`（应用版本）与 `fnpack/manifest`、`README` 必须一致；`RUNTIME_VERSION` 与运行时 `package.json`、`package-lock.json` 必须一致，且依赖必须**精确钉死**（不接受 `^` / `latest`）
+- **实物版本校验**：把运行时 tar 解开，读 `node_modules/@deepseek-ai/dsh/package.json` 里实际安装的版本，必须等于 `RUNTIME_VERSION`（防止"声明一个版本、实际装的是另一个"）
 - 图标：`ICON.PNG` / `ICON_256.PNG` 必须存在、256×256、四角透明，且不得与同目录其它应用图标重复
-- 目录守卫：拒绝在生产数据目录内执行任何构建
+- 端口钉死：默认内部端口 2298、反代端口 2299，桌面入口固定走 `web.sock` 与 `/app/deepseek-harness` 前缀，被改动即中止
+- 目录守卫：拒绝在应用数据目录内执行任何构建
+
+升级可用性单独验证（隔离目录、独立端口，不碰已装的应用）：
+
+```bash
+./scripts/smoke-upgrade.sh          # 先装旧版，再覆盖到当前包，验数据不丢
+./scripts/smoke-upgrade.sh --keep   # 保留工作目录便于排查
+```
+
+它会检查：`dsh-data` 里的会话与配置文件不变、配置项（端口、依赖源）沿用升级前的值、`web.sock` 重建、管理面板与 WebUI 网关可用、停止后端口释放、卸载回调不动数据目录。
 
 产物：`<构建目录>/dist/deepseek.harness_v<版本>_x86.fpk`
 

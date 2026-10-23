@@ -13,12 +13,12 @@
 #   产物    $BUILD/dist/*.fpk
 #
 # ⚠️ 硬红线（务必遵守）：
-#   绝不在以下目录里做任何 npm/pnpm install、前端构建或 go build ——
-#   那里有正在运行的生产进程，写一下就可能把线上服务搞崩：
-#     /vol1/@appdata/deepseek.harness/dsh-runtime
-#     /vol1/@appdata/deepseek.harness/dsh-data
+#   绝不在以下目录（含其任何子目录、以及 .bak/.old 之类兄弟目录）里做任何
+#   npm/pnpm install、前端构建或 go build —— 那里有正在运行的生产进程：
+#     /vol1/@appdata/deepseek.harness      （dsh-runtime / dsh-data / secrets / profile / bot 全在里面）
 #     /var/apps/deepseek.harness
 #     /vol1/@appcenter/deepseek.harness
+#     /vol1/@apphome|@appconf|@appmeta|@apptemp/deepseek.harness
 #   本脚本开头有目录守卫，命中红线路径直接退出。
 #
 # 用法：
@@ -48,14 +48,20 @@ for arg in "$@"; do
 done
 
 # ── 目录守卫：绝不碰生产目录 ──────────────────────────────────────────
+# 生产目录不止 dsh-runtime / dsh-data：secrets、profile、bot、日志、缓存全在
+# /vol1/@appdata/deepseek.harness 下，还有 @appdata 的 .bak/.old 之类兄弟目录，
+# 因此按"整棵树 + 通配兄弟"拦截，而不是只列两个子目录。
 guard() {
   local target="$1"
-  for forbidden in "/vol1/@appdata/deepseek.harness/dsh-runtime" \
-                   "/vol1/@appdata/deepseek.harness/dsh-data" \
+  for forbidden in "/vol1/@appdata/deepseek.harness" \
                    "/var/apps/deepseek.harness" \
-                   "/vol1/@appcenter/deepseek.harness"; do
+                   "/vol1/@appcenter/deepseek.harness" \
+                   "/vol1/@apphome/deepseek.harness" \
+                   "/vol1/@appconf/deepseek.harness" \
+                   "/vol1/@appmeta/deepseek.harness" \
+                   "/vol1/@apptemp/deepseek.harness"; do
     case "$target" in
-      "$forbidden"|"$forbidden"/*)
+      "$forbidden"|"$forbidden"/*|"$forbidden".*|"$forbidden".*/*)
         echo "✗ 拒绝在受保护目录内构建：$target" >&2
         echo "  生产进程正在这些目录上运行，构建必须全部在 ${ROOT} / ${BUILD} 内完成。" >&2
         exit 1

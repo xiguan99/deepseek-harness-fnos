@@ -1,24 +1,35 @@
 #!/usr/bin/env python3
-"""版本自检：应用版本与运行时版本必须处处一致。
+"""版本与端口自检：声明和实物必须一致。
 
 真相来源只有两个文件（都在仓库根）：
   VERSION          → 应用版本（写进 fnpack/manifest）
   RUNTIME_VERSION  → 钉死的 @deepseek-ai/dsh 版本（写进包内 app/.version）
 
+为什么要有"实物层"：装机版就吃过这个亏——包内声明 0.2.1-rc.1，实际跑的是
+在线升级来的 0.2.1-rc.2。只比 package.json/lock 里的声明不够，必须把 tar
+解开、读 node_modules 里那份真 package.json。
+
 检查项：
   1. fnpack/manifest 的 version == VERSION
   2. README.md 的版本小节里出现了 VERSION
-  3. 若传入 --runtime-dir：其 package.json 里 @deepseek-ai/dsh 必须精确等于 RUNTIME_VERSION
-     （不接受 ^ / ~ / latest，必须钉死）
-  4. 若传入 --tar：包内 tar 的 package.json 依赖同样必须精确等于 RUNTIME_VERSION
+  3. --runtime-dir：package.json 依赖精确等于 RUNTIME_VERSION（不接受 ^ ~ latest），
+     且必须有 package-lock.json
+  4. --tar：tar 内 package.json 依赖精确等于 RUNTIME_VERSION
+  5. --tar：tar 内 node_modules/@deepseek-ai/dsh/package.json 的 version 必须
+     精确等于 RUNTIME_VERSION（实物层，防声明/实物双轨）
+  6. 端口钉死：config.go 的默认端口必须仍是 2298（后端）/ 2299（反代），
+     前端 fnpack/app/ui/config 的两个桌面入口必须仍指向 web.sock + 同一个前缀
 """
 import argparse
 import json
 import pathlib
 import re
-import subprocess
 import sys
 import tarfile
+
+EXPECTED_SERVER_PORT = 2298
+EXPECTED_PROXY_PORT = 2299
+GATEWAY_PREFIX = "/app/deepseek-harness"
 
 
 def read(p):
@@ -38,13 +49,58 @@ def dep_version(pkg_json_path):
     return (data.get("dependencies") or {}).get("@deepseek-ai/dsh")
 
 
-def tar_dep_version(tar_path):
+def tar_versions(tar_path):
+    """一次遍历 tar，同时取声明依赖与实际安装版本。"""
+    declared = None
+    actual = None
     with tarfile.open(tar_path, "r:gz") as tf:
         for member in tf:
-            if member.name in ("./package.json", "package.json"):
+            name = member.name[2:] if member.name.startswith("./") else member.name
+            if name == "package.json":
                 data = json.loads(tf.extractfile(member).read().decode("utf-8"))
-                return (data.get("dependencies") or {}).get("@deepseek-ai/dsh")
-    return None
+                declared = (data.get("dependencies") or {}).get("@deepseek-ai/dsh")
+            elif name == "node_modules/@deepseek-ai/dsh/package.json":
+                data = json.loads(tf.extractfile(member).read().decode("utf-8"))
+                actual = data.get("version")
+            if declared is not None and actual is not None:
+                break
+    return declared, actual
+
+
+def check_ports(root):
+    """默认端口必须钉死，避免新包默认换端口导致用户书签失效。"""
+    errors = []
+    cfg = (root / "config.go").read_text(encoding="utf-8")
+    if f"ServerPort:         {EXPECTED_SERVER_PORT}" not in cfg:
+        errors.append(f"config.go 里 InitConfig 默认 ServerPort 不是 {EXPECTED_SERVER_PORT}")
+    if f"ProxyPort:          {EXPECTED_PROXY_PORT}" not in cfg:
+        errors.append(f"config.go 里 InitConfig 默认 ProxyPort 不是 {EXPECTED_PROXY_PORT}")
+    if f"return {EXPECTED_SERVER_PORT}" not in cfg:
+        errors.append(f"config.go 里 GetServerPort() 兜底值不是 {EXPECTED_SERVER_PORT}")
+    if f"return {EXPECTED_PROXY_PORT}" not in cfg:
+        errors.append(f"config.go 里 GetProxyPort() 兜底值不是 {EXPECTED_PROXY_PORT}")
+
+    ui_path = root / "fnpack" / "app" / "ui" / "config"
+    if not ui_path.exists():
+        errors.append("缺少 fnpack/app/ui/config（桌面入口定义）")
+        return errors
+    ui = json.loads(ui_path.read_text(encoding="utf-8"))
+    entries = ui.get(".url") or {}
+    if len(entries) != 2:
+        errors.append(f"桌面入口应为 2 个（Admin + WebUI），实际 {len(entries)} 个")
+    expected_urls = {f"{GATEWAY_PREFIX}/", f"{GATEWAY_PREFIX}/fngateway/"}
+    got_urls = set()
+    for key, val in entries.items():
+        got_urls.add(val.get("url"))
+        if val.get("gatewaySocket") != "web.sock":
+            errors.append(f"{key} 的 gatewaySocket 不是 web.sock（实际 {val.get('gatewaySocket')!r}）")
+        if val.get("gatewayPrefix") != GATEWAY_PREFIX:
+            errors.append(f"{key} 的 gatewayPrefix 不是 {GATEWAY_PREFIX}")
+        if val.get("type") != "iframe":
+            errors.append(f"{key} 的 type 不是 iframe（实际 {val.get('type')!r}）")
+    if got_urls != expected_urls:
+        errors.append(f"桌面入口 url 应为 {sorted(expected_urls)}，实际 {sorted(got_urls)}")
+    return errors
 
 
 def main():
@@ -76,16 +132,30 @@ def main():
             errors.append("运行时缺 package-lock.json（必须随包，保证可复现）")
 
     if args.tar:
-        tv = tar_dep_version(args.tar)
-        if tv != rt_ver:
-            errors.append(f"运行时 tar 内依赖 @deepseek-ai/dsh={tv!r}，必须是精确的 {rt_ver}")
+        declared, actual = tar_versions(args.tar)
+        if declared != rt_ver:
+            errors.append(f"运行时 tar 内声明依赖 @deepseek-ai/dsh={declared!r}，必须是精确的 {rt_ver}")
+        if actual is None:
+            errors.append("运行时 tar 里找不到 node_modules/@deepseek-ai/dsh/package.json（实物层缺失）")
+        elif actual != rt_ver:
+            errors.append(
+                f"运行时 tar 内实际安装版本是 {actual!r}，与钉死的 {rt_ver} 不一致"
+                "（声明与实物双轨，正是线上遇到过的坑）"
+            )
+
+    errors.extend(check_ports(root))
 
     if errors:
         for e in errors:
-            print(f"✗ 版本自检失败：{e}", file=sys.stderr)
+            print(f"✗ 自检失败：{e}", file=sys.stderr)
         return 1
 
-    print(f"✓ 版本自检通过：应用 {app_ver}（manifest/README 一致），运行时钉死 {rt_ver}")
+    tail = ""
+    if args.tar:
+        declared, actual = tar_versions(args.tar)
+        tail = f"；tar 内声明 {declared} / 实物 {actual}"
+    print(f"✓ 自检通过：应用 {app_ver}（manifest/README 一致），运行时钉死 {rt_ver}{tail}；"
+          f"端口钉死 {EXPECTED_SERVER_PORT}/{EXPECTED_PROXY_PORT}，桌面入口 2 个均走 web.sock")
     return 0
 
 
