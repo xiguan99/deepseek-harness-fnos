@@ -30,6 +30,8 @@ func InitRoutes(r *gin.Engine) {
 	InitFnGateway(base)
 
 	api := base.Group("/api")
+	// 控制接口一律校验令牌：双包后管理界面在独立应用里，通过回环端口调用
+	api.Use(RequireControlToken())
 	{
 		api.GET("/ws", handleWS)
 		api.POST("/action", handleAction)
@@ -63,7 +65,7 @@ func InitRoutes(r *gin.Engine) {
 		api.DELETE("/snapshots/:id", handleDeleteSnapshot)
 	}
 
-	sub, err := fs.Sub(WebFS, "frontend/dist")
+	sub, err := fs.Sub(WebFS, "web")
 	if err != nil {
 		LogFatal("[API] 静态前端资源装载失败: %s", err)
 	}

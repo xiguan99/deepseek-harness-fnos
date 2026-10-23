@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DeepSeek Harness</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+         font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+         background:#f5f7fa; color:#1f2937; }
+  @media (prefers-color-scheme: dark) { body { background:#12141a; color:#e5e7eb; } .card{background:#1b1e25!important;border-color:#2a2f3a!important} }
+  .card { background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:28px 26px; max-width:420px;
+          margin:20px; text-align:center; box-shadow:0 1px 2px rgba(16,24,40,.06); }
+  h1 { font-size:17px; margin:0 0 10px; font-weight:600; }
+  p { font-size:13px; line-height:1.7; margin:0 0 16px; color:#6b7280; }
+  a.btn { display:inline-block; padding:9px 18px; border-radius:9px; background:#3b82f6; color:#fff;
+          text-decoration:none; font-size:13px; font-weight:500; }
+  code { font-size:12px; background:rgba(127,127,127,.12); padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>DeepSeek Harness 已启动</h1>
+    <p>管理面板在独立应用 <b>Harness Panel</b> 里，从这里进入的是官方 Web 界面。</p>
+    <a class="btn" href="/fngateway/">进入 Web 界面</a>
+    <p style="margin:14px 0 0">本体管理接口只监听 <code>127.0.0.1</code>，供面板应用调用。</p>
+  </div>
+  <script>location.replace('/fngateway/');</script>
+</body>
+</html>

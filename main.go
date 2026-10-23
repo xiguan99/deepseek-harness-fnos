@@ -6,13 +6,14 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/gin-gonic/gin"
 )
 
-//go:embed frontend/dist/*
+//go:embed web/*
 var embeddedWebFS embed.FS
 
 var (
@@ -79,6 +80,7 @@ func main() {
 	r.Use(gin.Recovery())
 
 	WebFS = embeddedWebFS
+	InitControlToken()
 	InitRoutes(r)
 	StartWorkspaceWatch()
 	StartAppUpdateChecker()
@@ -93,8 +95,21 @@ func main() {
 	}
 	defer listener.Close()
 
-	if err := os.Chmod(socketPath, 0666); err != nil {
+	// 权限收紧到 0660（属主应用用户 : AppUsers）：本机其它用户不再能直接调用控制面。
+	// 注意它仍然是控制通道，/api/* 同样校验控制令牌（见 authz.go）。
+	if err := os.Chmod(socketPath, 0660); err != nil {
 		LogWarning("[主程序] Unix Socket 权限设置失败: %s", err)
+	}
+
+	// 回环控制面：面板应用通过 127.0.0.1:<controlPort> + 控制令牌调用
+	controlPort := 2297
+	if v := strings.TrimSpace(os.Getenv("DSH_CONTROL_PORT")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n < 65536 {
+			controlPort = n
+		}
+	}
+	if err := StartControlListener(r, controlPort); err != nil {
+		LogWarning("[控制面] 回环监听启动失败 [127.0.0.1:%d]: %s", controlPort, err)
 	}
 
 	LogInfo("[主程序] HTTP 服务已就绪，监听 Socket: %s", socketPath)
