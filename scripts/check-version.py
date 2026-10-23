@@ -17,8 +17,9 @@
   4. --tar：tar 内 package.json 依赖精确等于 RUNTIME_VERSION
   5. --tar：tar 内 node_modules/@deepseek-ai/dsh/package.json 的 version 必须
      精确等于 RUNTIME_VERSION（实物层，防声明/实物双轨）
-  6. 端口钉死：config.go 的默认端口必须仍是 2298（后端）/ 2299（反代），
-     前端 fnpack/app/ui/config 的两个桌面入口必须仍指向 web.sock + 同一个前缀
+  6. 端口钉死：config.go 的默认端口必须是 2298（后端）/ 2299（反代）/ 2297（控制面），
+     前端 fnpack/app/ui/config 只能有一个 url 入口，端口 2299、路径 /
+  7. manifest 里不得残留上游维护者标识（yuexps）
 """
 import argparse
 import json
@@ -29,6 +30,7 @@ import tarfile
 
 EXPECTED_SERVER_PORT = 2298
 EXPECTED_PROXY_PORT = 2299
+EXPECTED_CONTROL_PORT = 2297
 GATEWAY_PREFIX = "/app/deepseek-harness"
 
 
@@ -67,39 +69,37 @@ def tar_versions(tar_path):
     return declared, actual
 
 
-def check_ports(root):
-    """默认端口必须钉死，避免新包默认换端口导致用户书签失效。"""
+def check_ports(root: pathlib.Path):
+    """端口钉死 + 桌面入口形态 + 上游标识清理。"""
     errors = []
-    cfg = (root / "config.go").read_text(encoding="utf-8")
-    if f"ServerPort:         {EXPECTED_SERVER_PORT}" not in cfg:
-        errors.append(f"config.go 里 InitConfig 默认 ServerPort 不是 {EXPECTED_SERVER_PORT}")
-    if f"ProxyPort:          {EXPECTED_PROXY_PORT}" not in cfg:
-        errors.append(f"config.go 里 InitConfig 默认 ProxyPort 不是 {EXPECTED_PROXY_PORT}")
-    if f"return {EXPECTED_SERVER_PORT}" not in cfg:
-        errors.append(f"config.go 里 GetServerPort() 兜底值不是 {EXPECTED_SERVER_PORT}")
-    if f"return {EXPECTED_PROXY_PORT}" not in cfg:
-        errors.append(f"config.go 里 GetProxyPort() 兜底值不是 {EXPECTED_PROXY_PORT}")
+    cfg_go = (root / "config.go").read_text(encoding="utf-8")
+    if f"ServerPort:" not in cfg_go or f"{EXPECTED_SERVER_PORT}" not in cfg_go:
+        errors.append(f"config.go 里找不到后端端口 {EXPECTED_SERVER_PORT}")
+    if f"ProxyPort:" not in cfg_go or f"{EXPECTED_PROXY_PORT}" not in cfg_go:
+        errors.append(f"config.go 里找不到反代端口 {EXPECTED_PROXY_PORT}")
+    main_go = (root / "main.go").read_text(encoding="utf-8")
+    if str(EXPECTED_CONTROL_PORT) not in main_go:
+        errors.append(f"main.go 里找不到控制面端口 {EXPECTED_CONTROL_PORT}")
 
     ui_path = root / "fnpack" / "app" / "ui" / "config"
-    if not ui_path.exists():
-        errors.append("缺少 fnpack/app/ui/config（桌面入口定义）")
-        return errors
-    ui = json.loads(ui_path.read_text(encoding="utf-8"))
-    entries = ui.get(".url") or {}
-    if len(entries) != 2:
-        errors.append(f"桌面入口应为 2 个（Admin + WebUI），实际 {len(entries)} 个")
-    expected_urls = {f"{GATEWAY_PREFIX}/", f"{GATEWAY_PREFIX}/fngateway/"}
-    got_urls = set()
+    entries = json.loads(ui_path.read_text(encoding="utf-8")).get(".url", {})
+    if len(entries) != 1:
+        errors.append(f"桌面入口应为 1 个（本体直连），实际 {len(entries)} 个")
     for key, val in entries.items():
-        got_urls.add(val.get("url"))
-        if val.get("gatewaySocket") != "web.sock":
-            errors.append(f"{key} 的 gatewaySocket 不是 web.sock（实际 {val.get('gatewaySocket')!r}）")
-        if val.get("gatewayPrefix") != GATEWAY_PREFIX:
-            errors.append(f"{key} 的 gatewayPrefix 不是 {GATEWAY_PREFIX}")
-        if val.get("type") != "iframe":
-            errors.append(f"{key} 的 type 不是 iframe（实际 {val.get('type')!r}）")
-    if got_urls != expected_urls:
-        errors.append(f"桌面入口 url 应为 {sorted(expected_urls)}，实际 {sorted(got_urls)}")
+        if val.get("type") != "url":
+            errors.append(f"{key} 的 type 应是 url（实际 {val.get('type')!r}）")
+        if int(val.get("port") or 0) != EXPECTED_PROXY_PORT:
+            errors.append(f"{key} 的端口应是 {EXPECTED_PROXY_PORT}（实际 {val.get('port')!r}）")
+        if val.get("url") != "/":
+            errors.append(f"{key} 的 url 应是 /（实际 {val.get('url')!r}）")
+        if "gatewaySocket" in val or "gatewayPrefix" in val:
+            errors.append(f"{key} 还残留网关 socket 形态字段")
+
+    manifest_text = (root / "fnpack" / "manifest").read_text(encoding="utf-8")
+    if "yuexps" in manifest_text:
+        errors.append("manifest 里还残留上游维护者标识 yuexps")
+    if re.search(r"^version\s*=\s*v", manifest_text, re.M):
+        errors.append("manifest version 不能带 v 前缀（可能影响应用中心比较）")
     return errors
 
 
@@ -155,7 +155,8 @@ def main():
         declared, actual = tar_versions(args.tar)
         tail = f"；tar 内声明 {declared} / 实物 {actual}"
     print(f"✓ 自检通过：应用 {app_ver}（manifest/README 一致），运行时钉死 {rt_ver}{tail}；"
-          f"端口钉死 {EXPECTED_SERVER_PORT}/{EXPECTED_PROXY_PORT}，桌面入口 2 个均走 web.sock")
+          f"端口钉死 {EXPECTED_SERVER_PORT}/{EXPECTED_PROXY_PORT}/控制面 {EXPECTED_CONTROL_PORT}，"
+          f"桌面入口 1 个（url → 2299）")
     return 0
 
 

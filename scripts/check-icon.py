@@ -53,6 +53,8 @@ def main():
     ap.add_argument("--src", required=True, help="fnpack 目录")
     ap.add_argument("--name", required=True, help="应用名（仅用于日志）")
     ap.add_argument("--apps-root", default=None, help="同级项目根目录，默认 src 的父目录")
+    ap.add_argument("--extra", action="append", default=[],
+                    help="额外要比对的 fnpack 目录（可多次指定，用于跨仓库比较）")
     args = ap.parse_args()
 
     src = pathlib.Path(args.src).resolve()
@@ -82,8 +84,10 @@ def main():
         return 1
 
     clashes = []
-    for other in sorted(apps_root.glob("*/fnpack*")):
-        if other.resolve() == src:
+    candidates = list(sorted(apps_root.glob("*/fnpack*")))
+    candidates += [pathlib.Path(e) for e in args.extra]
+    for other in candidates:
+        if not other.is_dir() or other.resolve() == src:
             continue
         for fname in ("ICON.PNG", "ICON_256.PNG"):
             p = other / fname
