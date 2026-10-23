@@ -29,9 +29,20 @@ type Config struct {
 	AccessPassword     string `json:"access_password,omitempty"`
 	DataLibraryPath    string `json:"data_library_path,omitempty"`
 	EnableBuiltinSkill *bool  `json:"enable_builtin_skill,omitempty"`
+	AllowRuntimeUpgrade *bool `json:"allow_runtime_upgrade,omitempty"`
 	Version            string `json:"version,omitempty"`
 	BuildTime          string `json:"build_time,omitempty"`
 	LastRunState       string `json:"last_run_state,omitempty"`
+}
+
+// IsRuntimeUpgradeAllowed 是否允许「在线升级运行时」。
+// 默认关闭：本应用以包内钉死的 @deepseek-ai/dsh 版本为准，
+// 在线升级会让运行版本偏离包内版本，出问题时无法判定状态归属。
+func (c Config) IsRuntimeUpgradeAllowed() bool {
+	if c.AllowRuntimeUpgrade == nil {
+		return false
+	}
+	return *c.AllowRuntimeUpgrade
 }
 
 func (c Config) IsProxyDshRuntimeEnabled() bool {
@@ -79,6 +90,7 @@ func InitConfig() {
 	configFilePath = filepath.Join(globalPkgVar, "config.json")
 	defaultSkillEnabled := true
 	defaultProxyDsh := false
+	defaultRuntimeUpgrade := false
 	globalConfig = Config{
 		ServerPort:         2298,
 		ProxyPort:          2299,
@@ -86,6 +98,7 @@ func InitConfig() {
 		DataLibraryPath:    globalPkgVar,
 		EnableBuiltinSkill: &defaultSkillEnabled,
 		ProxyDshRuntime:    &defaultProxyDsh,
+		AllowRuntimeUpgrade: &defaultRuntimeUpgrade,
 		NpmRegistry:        DefaultNpmRegistry,
 		UpdateChannel:      "latest",
 	}
@@ -102,6 +115,9 @@ func InitConfig() {
 	}
 	if globalConfig.ProxyDshRuntime == nil {
 		globalConfig.ProxyDshRuntime = &defaultProxyDsh
+	}
+	if globalConfig.AllowRuntimeUpgrade == nil {
+		globalConfig.AllowRuntimeUpgrade = &defaultRuntimeUpgrade
 	}
 	if globalConfig.NpmRegistry == "" {
 		globalConfig.NpmRegistry = DefaultNpmRegistry

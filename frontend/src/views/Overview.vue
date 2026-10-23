@@ -347,7 +347,7 @@ const actionCards = computed<ActionCard[]>(() => [
     action: 'check_update',
     icon: Download,
     label: isCheckingUpdate.value ? '检查中…' : '检查更新',
-    desc: '检测 NPM 上游最新版本，在线升级 DSH',
+    desc: '检测 NPM 上游最新版本；在线升级默认关闭，开启后会偏离包内钉死版本',
     iconBg: 'bg-blue-50 dark:bg-blue-950/30 group-hover:bg-blue-100 dark:group-hover:bg-blue-950/50',
     iconColor: 'text-fnos-blue dark:text-blue-400',
     disabled: isActionLocked.value || isCheckingUpdate.value,

@@ -1,93 +1,94 @@
 # DeepSeek Harness for fnOS
 
-专为飞牛 fnOS 打造的 DeepSeek Harness 一键部署与可视化管理应用。
+为飞牛 OS（fnOS）打包的 DeepSeek Harness 管理与部署应用：把 DSH 运行时、WebUI 与管理面板装成一个原生应用，从飞牛桌面点开即用。
 
 ---
 
 ## 主要功能
 
-- **服务控制**：支持启动、停止、重启、拉取更新与强制重建，内置进程组清理。
-- **插件管理**：支持命令安装（npm 包 / GitHub 仓库）、构建脚本自动放行（allowBuilds）、一键启停与卸载。
-- **工作区查看**：实时同步工作区列表、关联会话数及更新时间，支持在文件管理中一键定位目录。
-- **安全与网关**：支持飞牛统一网关、HTTP 反代与外部自定义地址，提供访问密码鉴权（技术实现详见 [反代适配文档](./REVERSE_PROXY_ADAPTATION.md)）。
-- **运行日志**：WebSocket 实时推送日志，支持语法高亮、自动滚动、日志轮转、清空与下载。
-- **应用设置**：支持配置服务端口、反向代理端口、打开方式、访问密码及网络代理，端口占用检测与热重载。
+- **服务控制**：启动、停止、重启、检查更新与重新部署，内置进程组清理
+- **插件管理**：支持 npm 包 / Git 仓库安装，构建脚本自动放行，一键启停与卸载
+- **工作区查看**：同步工作区列表、关联会话数与更新时间，可跳转文件管理定位目录
+- **安全与网关**：支持飞牛统一网关、HTTP 反代与自定义地址，可选访问密码鉴权（见 [反代适配文档](./REVERSE_PROXY_ADAPTATION.md)）
+- **运行日志**：WebSocket 实时推送，语法高亮、自动滚动、日志轮转、清空与下载
+- **应用设置**：服务端口、反代端口、打开方式、访问密码、网络代理，带端口占用检测与热重载
+
+两个桌面入口：
+
+| 入口 | 打开 | 说明 |
+| --- | --- | --- |
+| Harness Admin | `/app/deepseek-harness/` | 管理与运维面板 |
+| Harness WebUI | `/app/deepseek-harness/fngateway/` | DSH 本体 WebUI，支持飞牛统一网关、FnConnect、外部反代 |
 
 ---
 
-## 预览
+## 系统要求
 
-![应用概览](preview/02b0dcb3-30bc-4e06-bf23-abb1304dd854.png)
-![功能界面](preview/faed9fbf-1bfe-4108-9bb3-3384a100ace7.png)
-
-## B站视频(求三连！)
-
-[![DeepSeek Harness - 点击观看](https://i1.hdslb.com/bfs/archive/0bdd8fddbf3c8e6bf02d0570c31c340e1f6f199e.jpg@384w_216h_1c.webp)](https://www.bilibili.com/video/BV1bbbe6pEYE)
+- 飞牛 OS（fnOS）x86_64
+- 依赖应用中心的 `nodejs_v24`（安装时自动带上）
+- 磁盘：应用约 180 MB；数据目录（会话、插件、记忆）随使用增长
+- 内存：DSH 运行时单进程约 200～400 MB，长会话更高，可在设置里调堆内存上限
 
 ---
 
-## 技术架构
+## 运行时版本策略
 
-- **后端**：Go 1.23 + Gin Web 框架 + Gorilla WebSocket + Linux 进程管理
-- **前端**：Vue 3 + TypeScript + Naive UI + Pinia + Tailwind CSS + Vite
-- **打包规范**：飞牛 fnOS 原生应用包规范（`fnpack`）
+本应用只维护「应用层」（启停生命周期、桌面入口、管理面板、更新器、安装回调），**DSH 运行时用官方 npm 包并钉死版本**：
+
+- 当前应用版本 `0.4.1.1`，内置运行时 `@deepseek-ai/dsh` **0.2.1-rc.2**
+- 运行时随安装包分发（包内 `deepseek-harness.tar.gz`，含 `package.json` / `package-lock.json` / `node_modules`），首启解包，无需联网
+- 面板里的「在线升级运行时」**默认关闭**：DSH 版本跟随应用包，升级应用时一起更新。需要临时尝鲜时可手动开启，开启后运行版本会与包内版本不一致
+- 覆盖安装只替换程序，不动数据目录里的会话、插件与记忆
 
 ---
 
-## 项目结构
+## 安装
 
-```
-deepseek.harness/
-├── harness.go          # 服务生命周期管理与状态机
-├── process.go          # 进程组控制、孤儿清理、端口等待与巡检自愈
-├── upgrade.go          # NPM包安装与在线更新
-├── plugins.go          # 插件解析、安装、启停与安全校验
-├── profile.go          # 插件运行时补丁与构建策略管理 (cordis.patch.yml / allowBuilds)
-├── workspace.go        # 工作区数据提取与文件监控
-├── proxy.go            # 内置反向代理服务与访问认证
-├── fngateway.go        # 飞牛网关直连反代与状态感知
-├── api.go              # RESTful API 与 WebSocket 实时通道
-├── config.go           # 应用配置持久化与全局运行环境变量
-├── logger.go           # 运行日志记录、轮转与增量订阅
-├── main.go             # 程序入口与 Unix Socket 监听
-├── REVERSE_PROXY_ADAPTATION.md # 反向代理与网关子路径适配技术文档
-├── templates/          # 独立内嵌页面模板 (//go:embed)
-│   ├── auth_login.html     # 访问密码验证页面
-│   └── gateway_status.html # 网关状态与错误引导页面
-├── fnpack/             # 飞牛 OS 应用包配置与生命周期脚本
-│   ├── manifest        # 应用元数据清单
-│   ├── config/         # 权限与资源配置
-│   └── cmd/            # 安装、启动、停止与卸载脚本
-└── frontend/           # Naive UI 前端项目
-    ├── src/
-    │   ├── api/        # 统一 API 接口服务
-    │   ├── mock/       # 本地离线开发仿真插件 (Vite)
-    │   ├── stores/     # Pinia 模块化状态管理
-    │   ├── utils/      # HTTP 客户端与 WebSocket 管理器
-    │   ├── types/      # TypeScript 契约与类型定义
-    │   ├── views/      # 概览、工作区、插件、日志、设置视图
-    │   └── theme.ts    # 主题定制
-    └── package.json
-```
+1. 应用中心 → 手动安装 → 选择 `deepseek.harness-x86.fpk`
+2. 首次启动会解出运行时并准备数据目录，通常 1～2 分钟
+3. 从桌面图标进入 Harness Admin，按需配置端口、访问方式与密码
 
 ---
 
 ## 构建与打包
 
-### 1. 前端构建
+构建全部在仓库外完成，产物落在构建目录，不写系统目录：
+
 ```bash
-cd frontend
-npm install
-npm run build
-cd ..
+# 一次性准备：Go 1.23.12、Node 24（应用中心 nodejs_v24 自带）
+# 一键构建：版本与图标自检 → 运行时 tar（复用或重建）→ 前端 → Go → 打 fpk
+./scripts/build.sh
+
+# 可选参数
+./scripts/build.sh --runtime         # 强制重建运行时 tar（会 npm install 到构建目录）
+./scripts/build.sh --skip-frontend   # 跳过前端构建，复用已有 dist
 ```
 
-### 2. 后端编译（针对 Linux amd64）
-```bash
-set GOOS=linux
-set GOARCH=amd64
-go build -ldflags "-s -w" -o fnpack/app/bin/deepseek.harness .
-```
+构建脚本会先做硬校验，任一不通过直接中止：
 
-### 3. 生成飞牛 fnOS 安装包
-在项目根目录下执行 `build.cmd` 或 `build.sh` 即可生成 `.fpk` 安装包。
+- 版本一致：`VERSION`（应用版本）与 `fnpack/manifest`、`README` 必须一致；`RUNTIME_VERSION` 与运行时 `package.json`、`package-lock.json` 必须一致，且依赖必须**精确钉死**（不接受 `^` / `latest`）
+- 图标：`ICON.PNG` / `ICON_256.PNG` 必须存在、256×256、四角透明，且不得与同目录其它应用图标重复
+- 目录守卫：拒绝在生产数据目录内执行任何构建
+
+产物：`<构建目录>/dist/deepseek.harness_v<版本>_x86.fpk`
+
+---
+
+## 隐私
+
+应用只做本地管理：不含设备指纹、使用统计、远程校验或遥测上报。唯一的出网请求是「检查更新」时访问本项目 Releases 页面与 npm 版本接口，可离线使用。
+
+---
+
+## 版本
+
+- 应用：`0.4.1.1`
+- 内置运行时：`@deepseek-ai/dsh` `0.2.1-rc.2`
+
+---
+
+## 来源与致谢
+
+- DSH 运行时：DeepSeek，官方 npm 包 `@deepseek-ai/dsh`
+- 应用层最初由 [yuexps/deepseek.harness.fnos](https://github.com/yuexps/deepseek.harness.fnos) 实现，本仓库在其 v0.4.1 基础上自维护
+- 许可证：随上游，上游仓库未附许可证文件；如需商用请先与上游确认

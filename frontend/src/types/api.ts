@@ -154,6 +154,7 @@ export interface SettingsConfig {
   access_password: string
   data_library_path?: string
   enable_builtin_skill?: boolean
+  allow_runtime_upgrade?: boolean
   version?: string
   build_time?: string
 }

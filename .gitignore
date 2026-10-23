@@ -1,9 +1,7 @@
-node_modules
-frontend/dist
-test
-.agents
-*.fpk
-fnpack/*.fpk
+# 构建产物与本地依赖不进仓库
+frontend/node_modules/
+frontend/dist/
 fnpack/app/bin/deepseek.harness
-fnpack/app/*.tar.gz
-fnpack/app/*.zip
+fnpack/app/deepseek-harness.tar.gz
+fnpack/app/.version
+*.fpk

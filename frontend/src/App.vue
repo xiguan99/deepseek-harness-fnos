@@ -236,8 +236,8 @@ const currentView = computed(() => views[tab.value])
 
 function openRepo() {
   const url = appHasUpdate.value
-    ? 'https://github.com/yuexps/deepseek.harness.fnos/releases'
-    : 'https://github.com/yuexps/deepseek.harness.fnos'
+    ? 'https://github.com/xiguan99/deepseek-harness-fnos/releases'
+    : 'https://github.com/xiguan99/deepseek-harness-fnos'
   trimSdk.openURL(url, '_blank')
 }
 

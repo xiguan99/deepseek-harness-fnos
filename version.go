@@ -57,7 +57,7 @@ func fetchAppRemoteUpdate() {
 			return http.ErrUseLastResponse
 		},
 	}
-	req, err := http.NewRequest("GET", "https://github.com/yuexps/deepseek.harness.fnos/releases/latest", nil)
+	req, err := http.NewRequest("GET", "https://github.com/xiguan99/deepseek-harness-fnos/releases/latest", nil)
 	if err != nil {
 		return
 	}

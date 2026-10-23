@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@formkit/auto-animate": "^0.10.0",
-    "@trimjs/web-app": "latest",
+    "@trimjs/web-app": "0.5.0",
     "@vicons/tabler": "^0.12.0",
     "highlight.js": "^11.11.1",
     "naive-ui": "^2.41.0",

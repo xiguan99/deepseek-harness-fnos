@@ -15,7 +15,8 @@ export const useConfigStore = defineStore('config', () => {
     access_mode: 'fngateway',
     reverse_proxy_url: '',
     access_password: '',
-    enable_builtin_skill: true
+    enable_builtin_skill: true,
+    allow_runtime_upgrade: false
   })
 
   const savedConfig = ref<SettingsConfig | null>(null)
@@ -41,6 +42,8 @@ export const useConfigStore = defineStore('config', () => {
       (config.value.reverse_proxy_url || '') !== (savedConfig.value.reverse_proxy_url || '') ||
       (config.value.access_password || '') !== (savedConfig.value.access_password || '') ||
       Boolean(config.value.enable_builtin_skill ?? true) !== Boolean(savedConfig.value.enable_builtin_skill ?? true)
+      ||
+      Boolean(config.value.allow_runtime_upgrade ?? false) !== Boolean(savedConfig.value.allow_runtime_upgrade ?? false)
     )
   })
 
@@ -93,6 +96,9 @@ export const useConfigStore = defineStore('config', () => {
         data.heap_memory_limit = data.heap_memory_limit ?? 0
         if (data.enable_builtin_skill === undefined) {
           data.enable_builtin_skill = true
+        }
+        if (data.allow_runtime_upgrade === undefined) {
+          data.allow_runtime_upgrade = false
         }
         if (data.proxy_dsh_runtime === undefined) {
           data.proxy_dsh_runtime = false

@@ -252,6 +252,27 @@
                 <n-select v-model:value="config.npm_registry" :options="npmRegistryOptions" />
               </n-form-item>
 
+              <div class="pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm font-medium text-slate-800 dark:text-slate-100">允许在线升级运行时</span>
+                    <n-tooltip :trigger="isTouch ? 'click' : 'hover'">
+                      <template #trigger>
+                        <n-icon size="14"
+                          class="text-slate-400 dark:text-slate-500 cursor-help transition-colors active:text-fnos-blue dark:active:text-blue-400">
+                          <Help />
+                        </n-icon>
+                      </template>
+                      开启后可从 NPM 在线升级 DSH 运行时，运行版本会偏离应用包内钉死的版本
+                    </n-tooltip>
+                  </div>
+                  <n-switch v-model:value="config.allow_runtime_upgrade" size="medium" class="shrink-0" />
+                </div>
+                <div class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  默认关闭：运行时以应用包内钉死的版本为准，升级应用时一起更新。开启后可用「检查更新」在线升级运行时，届时运行版本会与包内版本不一致，出问题时请先核对两者版本号。
+                </div>
+              </div>
+
               <n-form-item path="network_proxy">
                 <template #label>
                   <div class="flex items-center gap-1.5">

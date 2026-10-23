@@ -366,6 +366,10 @@ func handleAction(c *gin.Context) {
 		}
 		switch req.Action {
 		case "upgrade":
+			if !GetConfig().IsRuntimeUpgradeAllowed() {
+				Fail(c, http.StatusForbidden, "在线升级运行时已关闭：本应用以包内钉死的 DSH 运行时为准。如需临时偏离包内版本，请先在「设置 → 网络与依赖源」中开启「允许在线升级运行时」。")
+				return
+			}
 			Upgrade()
 		case "rebuild":
 			Rebuild()
