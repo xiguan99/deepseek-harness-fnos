@@ -1,0 +1,33 @@
+[
+    {
+        "stepTitle": "确认卸载",
+        "items": [
+            {
+                "type": "tips",
+                "helpText": "您即将卸载 DeepSeek Harness 管理面板。面板只保存访问设置，卸载不会影响本体数据、会话与技能。"
+            },
+            {
+                "type": "radio",
+                "field": "wizard_data_action",
+                "label": "面板数据保留选项",
+                "initValue": "keep",
+                "options": [
+                    {
+                        "label": "保留数据（推荐）- 重新安装后设置还在",
+                        "value": "keep"
+                    },
+                    {
+                        "label": "删除所有数据 - 访问密码与网络设置将丢失",
+                        "value": "delete"
+                    }
+                ],
+                "rules": [
+                    {
+                        "required": true,
+                        "message": "请选择数据保留选项"
+                    }
+                ]
+            }
+        ]
+    }
+]

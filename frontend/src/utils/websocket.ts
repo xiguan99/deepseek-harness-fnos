@@ -47,7 +47,13 @@ export class WSManager {
 
   private resolveWsUrl(): string {
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${proto}//${window.location.host}/app/deepseek-harness/api/ws`
+    // 按当前页面所在目录推导基址：本体直连（/）与面板网关前缀（/app/harness-panel/）都能用，
+    // 不再写死 /app/deepseek-harness —— 那是本体网关前缀，面板下会连错地方。
+    let base = window.location.pathname
+    if (!base.endsWith('/')) {
+      base = base.replace(/\/[^\/]*$/, '/')
+    }
+    return `${proto}//${window.location.host}${base}api/ws`
   }
 
   public connect(): void {

@@ -171,8 +171,9 @@
       </n-alert>
     </div>
 
-    <!-- 发现新版本升级确认弹窗 -->
-    <n-modal v-model:show="showUpdateModal" preset="dialog" type="info" title="发现新版本" positive-text="立即更新"
+    <!-- 发现新版本升级确认弹窗（仅在允许在线升级运行时才会出现） -->
+    <n-modal v-model:show="showUpdateModal" preset="dialog" type="info" title="发现新版本"
+      :positive-text="runtimeUpgradeAllowed ? '立即更新' : undefined"
       negative-text="暂不更新" :loading="isActionLocked" @positive-click="confirmUpgrade"
       @negative-click="showUpdateModal = false">
       <div class="space-y-3 pt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
@@ -219,7 +220,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, type Component } from 'vue'
+import { ref, computed, onMounted, h, type Component } from 'vue'
 import { storeToRefs } from 'pinia'
 import {
   NCard,
@@ -247,15 +248,22 @@ import {
 } from '@vicons/tabler'
 import { useSystemStore } from '../stores/system'
 import { useAppStore } from '../stores/app'
+import { useConfigStore } from '../stores/config'
 import { withAsyncLock } from '../utils/debounce'
 import { useIsTouchDevice } from '../utils/device'
 import type { CheckUpdateResult } from '../types/api'
 
 const systemStore = useSystemStore()
 const appStore = useAppStore()
+const configStore = useConfigStore()
+const { config: runtimeConfig } = storeToRefs(configStore)
 const message = useMessage()
 const dialog = useDialog()
 const isTouch = useIsTouchDevice()
+
+// 运行时是否允许在线升级：默认 false，即运行时以应用包内钉死的版本为准。
+// 关闭时不提供任何"可点击升级"的入口，只展示现状与去路（去应用中心装新版本）。
+const runtimeUpgradeAllowed = computed(() => Boolean(runtimeConfig.value.allow_runtime_upgrade))
 
 const showUpdateModal = ref(false)
 const updateInfo = ref<CheckUpdateResult | null>(null)
@@ -347,7 +355,10 @@ const actionCards = computed<ActionCard[]>(() => [
     action: 'check_update',
     icon: Download,
     label: isCheckingUpdate.value ? '检查中…' : '检查更新',
-    desc: '检测 NPM 上游最新版本；在线升级默认关闭，开启后会偏离包内钉死版本',
+    // 关闭在线升级时，这张卡不再是"去升级"的入口，只说明运行时随包发布、升级走应用中心
+    desc: runtimeUpgradeAllowed.value
+      ? '检测 NPM 上游最新版本，确认后可在线升级运行时'
+      : `运行时随包发布${statusData.value.version ? `（${formatVersion(statusData.value.version)}）` : ''}，升级请到应用中心安装新版本`,
     iconBg: 'bg-blue-50 dark:bg-blue-950/30 group-hover:bg-blue-100 dark:group-hover:bg-blue-950/50',
     iconColor: 'text-fnos-blue dark:text-blue-400',
     disabled: isActionLocked.value || isCheckingUpdate.value,
@@ -383,6 +394,35 @@ const handleAction = withAsyncLock(async (action: string) => {
       message.error(res.message || '检查更新失败，请检查网络')
       return
     }
+
+    // 运行时不跟随 NPM 在线升级（默认）：只汇报事实，不弹"立即更新"，不给可点入口。
+    // 否则用户会看到一个点下去必然失败的更新按钮，误以为应用坏了。
+    if (!runtimeUpgradeAllowed.value) {
+      const current = formatVersion(res.data.current_version || statusData.value.version || '')
+      const remote = res.data.has_update ? formatVersion(res.data.remote_version || '') : ''
+      dialog.info({
+        title: '运行时版本',
+        content: () =>
+          h('div', { class: 'space-y-2 text-xs leading-relaxed' }, [
+            h('div', `运行时已钉死 ${current}（随包发布）`),
+            h(
+              'div',
+              { class: 'text-slate-500' },
+              '在线升级已关闭，可在「设置 → 网络与依赖源」开启'
+            ),
+            h(
+              'div',
+              { class: 'text-slate-500' },
+              remote
+                ? `上游已发布 ${remote}；本应用跟随应用中心的应用包更新，不需要单独升级运行时`
+                : '当前运行时与包内版本一致'
+            )
+          ]),
+        positiveText: '知道了'
+      })
+      return
+    }
+
     if (res.data.has_update) {
       updateInfo.value = res.data
       showUpdateModal.value = true

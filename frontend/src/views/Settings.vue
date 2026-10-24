@@ -266,7 +266,8 @@
                       开启后可从 NPM 在线升级 DSH 运行时，运行版本会偏离应用包内钉死的版本
                     </n-tooltip>
                   </div>
-                  <n-switch v-model:value="config.allow_runtime_upgrade" size="medium" class="shrink-0" />
+                  <n-switch :value="config.allow_runtime_upgrade" size="medium" class="shrink-0"
+                    @update:value="handleRuntimeUpgradeToggle" />
                 </div>
                 <div class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   默认关闭：运行时以应用包内钉死的版本为准，升级应用时一起更新。开启后可用「检查更新」在线升级运行时，届时运行版本会与包内版本不一致，出问题时请先核对两者版本号。
@@ -413,6 +414,24 @@ const npmRegistryOptions = [
   { label: '华为云镜像源 (huaweicloud.com)', value: 'https://repo.huaweicloud.com/repository/npm/' },
   { label: 'npm 官方源 (npmjs.org)', value: 'https://registry.npmjs.org' }
 ]
+
+// 开启「允许在线升级运行时」是一次有后果的切换：运行版本会偏离包内钉死版本，
+// 出问题需要手动回退。所以开启前必须先确认一次，关闭则直接生效。
+const handleRuntimeUpgradeToggle = (next: boolean) => {
+  if (!next) {
+    config.value.allow_runtime_upgrade = false
+    return
+  }
+  dialog.warning({
+    title: '开启在线升级运行时？',
+    content: '开启后运行时可能偏离包内版本，出问题需手动回退。确定开启吗？',
+    positiveText: '仍要开启',
+    negativeText: '取消',
+    onPositiveClick: () => {
+      config.value.allow_runtime_upgrade = true
+    }
+  })
+}
 
 // 版本更新通道选项
 const updateChannelOptions = [

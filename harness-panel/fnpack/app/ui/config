@@ -1,0 +1,14 @@
+{
+    ".url": {
+        "harness-panel.Application": {
+            "title": "Harness Panel",
+            "icon": "images/icon_{0}.png",
+            "type": "iframe",
+            "protocol": "",
+            "gatewayPrefix": "/app/harness-panel",
+            "gatewaySocket": "harness-panel.sock",
+            "url": "/app/harness-panel",
+            "allUsers": true
+        }
+    }
+}

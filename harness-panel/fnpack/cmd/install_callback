@@ -1,0 +1,26 @@
+#!/bin/bash
+
+### 面板安装后回调：只准备自己的状态目录，绝不碰本体数据目录。
+
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+
+log_msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] $1" >> ${LOG_FILE}
+}
+
+log_err() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] $1" >> ${LOG_FILE}
+}
+
+log_msg "开始执行 harness-panel 安装初始化回调..."
+
+mkdir -p "${TRIM_PKGVAR}" 2>/dev/null || true
+chmod 0750 "${TRIM_PKGVAR}" 2>/dev/null || true
+
+# 清理可能残留的网关 socket（本应用自己的，不是本体的 web.sock）
+if [ -n "${TRIM_APPDEST}" ]; then
+    rm -f "${TRIM_APPDEST}/harness-panel.sock"
+fi
+
+log_msg "安装初始化回调完成（面板数据目录 ${TRIM_PKGVAR}，未触碰本体数据）"
+exit 0

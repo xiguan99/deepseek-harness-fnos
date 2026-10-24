@@ -1,7 +1,7 @@
 appname               = deepseek.harness
-version               = 0.4.1.1
+version               = 0.2.1-rc.2.1
 display_name          = DeepSeek Harness
-desc                  = DeepSeek Harness 管理应用，支持管理 Harness 服务的启动、停止、重启、升级。<br/>提供 2 个桌面入口：<br/>• Harness Admin：管理器面板<br/>• Harness WebUI：DSH 的 WebUI，支持 飞牛统一网关、FnConnect、外部反代访问
+desc                  = DeepSeek Harness 的飞牛 OS 原生打包版，分本体与面板两个应用：<br/>• 本体（本应用）：DSH 服务 + Web UI，桌面图标直达 http://主机IP:2299/<br/>• 面板（另装 harness-panel）：概览、工作区、授权、插件、快照、日志、设置 共 7 个页面<br/>版本口径：0.2.1-rc.2.1 = 官方运行时 0.2.1-rc.2 + 本仓双包改造第 1 号补丁
 platform              = x86
 source                = thirdparty
 install_dep_apps      = nodejs_v24

@@ -1,0 +1,87 @@
+#!/bin/bash
+# harness-panel 生命周期入口
+# 进程结构：fnshell.py 单进程（对外：飞牛网关 socket + 直连 2296，
+#           内部：静态托管面板前端 + 反代本体控制面 127.0.0.1:2297）
+# 面板自身不跑第二套后端，所有数据都在本体那边。
+LOG_FILE="${TRIM_PKGVAR}/panel.log"
+PID_FILE="${TRIM_PKGVAR}/app.pid"
+APP_DIR="${TRIM_APPDEST}"
+STATE_DIR="${TRIM_PKGVAR}"
+
+PY_RUNTIME="/var/apps/python312/target/bin/python3"
+[ -x "${PY_RUNTIME}" ] || PY_RUNTIME="$(command -v python3 || true)"
+
+PANEL_PORT="${PANEL_PORT:-2296}"
+GATEWAY_PREFIX="${GATEWAY_PREFIX:-/app/harness-panel}"
+SOCKET_FILE="${APP_DIR}/harness-panel.sock"
+BACKEND="${DSH_CONTROL_BACKEND:-127.0.0.1:2297}"
+BACKEND_BASE="${DSH_BASE_PATH:-/app/deepseek-harness}"
+DIST_DIR="${APP_DIR}/panel_dist"
+
+log_msg() { echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] $1" >> "${LOG_FILE}"; }
+log_err() { echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] $1" >> "${LOG_FILE}"; }
+check_process() { ps -p "$1" >/dev/null 2>&1; }
+port_open() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null && { exec 3<&- 3>&-; return 0; }; return 1; }
+
+status() {
+    if [ -f "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        if check_process "${pid}"; then return 0; else rm -f "${PID_FILE}"; fi
+    fi
+    return 1
+}
+
+start_process() {
+    status && { log_msg "已在运行，跳过"; return 0; }
+    [ -x "${PY_RUNTIME}" ] || { log_err "python312 套件未找到"; return 1; }
+    [ -f "${APP_DIR}/fnshell.py" ] || { log_err "找不到 ${APP_DIR}/fnshell.py"; return 1; }
+    [ -f "${DIST_DIR}/index.html" ] || { log_err "找不到 ${DIST_DIR}/index.html"; return 1; }
+    mkdir -p "${STATE_DIR}" 2>/dev/null || true
+    rm -f "${SOCKET_FILE}" 2>/dev/null || true
+
+    log_msg "启动面板（对外 :${PANEL_PORT} + 网关 socket，前缀 ${GATEWAY_PREFIX}，本体控制面 ${BACKEND}）"
+    TRIM_APPDEST="${APP_DIR}" TRIM_PKGVAR="${STATE_DIR}" \
+        setsid nohup "${PY_RUNTIME}" "${APP_DIR}/fnshell.py" \
+        --socket "${SOCKET_FILE}" --prefix "${GATEWAY_PREFIX}" \
+        --dist "${DIST_DIR}" --backend "${BACKEND}" --backend-base "${BACKEND_BASE}" \
+        --tcp "${PANEL_PORT}" --tcp-host 0.0.0.0 --state "${STATE_DIR}" \
+        >> "${LOG_FILE}" 2>&1 < /dev/null &
+    pid=$!
+
+    ok=""
+    for i in $(seq 1 30); do
+        sleep 0.4
+        if [ -S "${SOCKET_FILE}" ] && port_open "${PANEL_PORT}"; then ok="1"; break; fi
+        check_process "${pid}" || break
+    done
+    if [ -n "${ok}" ]; then
+        printf "%s" "${pid}" > "${PID_FILE}"
+        log_msg "面板启动成功 PID=${pid}（socket ${SOCKET_FILE} / 直连 :${PANEL_PORT}）"
+        return 0
+    fi
+    log_err "面板启动失败（见 ${LOG_FILE}）"
+    stop_process >/dev/null 2>&1
+    return 1
+}
+
+stop_process() {
+    log_msg "停止面板"
+    if [ -f "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        check_process "${pid}" && kill -TERM "${pid}" 2>/dev/null || true
+    fi
+    pkill -TERM -f "python3.*${APP_DIR}/fnshell.py" 2>/dev/null || true
+    sleep 1
+    pkill -KILL -f "python3.*${APP_DIR}/fnshell.py" 2>/dev/null || true
+    rm -f "${PID_FILE}" "${SOCKET_FILE}" 2>/dev/null || true
+    log_msg "已停止"
+    return 0
+}
+
+case $1 in
+start)            start_process ;;
+stop)             stop_process ;;
+status)           status && exit 0 || exit 3 ;;
+restart|restart-backend) stop_process; start_process ;;
+*)                exit 1 ;;
+esac

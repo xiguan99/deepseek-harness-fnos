@@ -26,6 +26,40 @@ case "$VERSION" in
 esac
 [ -f "$SRC/app/fnshell.py" ] || { red "✗ 缺少 app/fnshell.py"; exit 1; }
 [ -d "$SRC/app/panel_dist" ] || { red "✗ 缺少 app/panel_dist（先跑前端构建）"; exit 1; }
+
+# wizard 必须是真的配置：飞牛应用中心解析空数组会空指针（APP_INSTALL_FAILED_PKG_EXCEPTION，
+# CLI 侧 code 10111 invalid memory address）。曾经留过 []\n，装不上就是这个原因。
+python3 - "$SRC/wizard/install" "$SRC/wizard/uninstall" <<'PY'
+import json, os, sys
+
+def load(path, label, required_field):
+    if not os.path.exists(path):
+        raise SystemExit(f"✗ 缺少 {label}（{path}）")
+    size = os.path.getsize(path)
+    if size <= 100:
+        raise SystemExit(f"✗ {label} 只有 {size} 字节，必须是真实配置（>100 字节），不能是空数组")
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+    except Exception as exc:
+        raise SystemExit(f"✗ {label} 不是合法 JSON：{exc}")
+    if not isinstance(data, list) or not data:
+        raise SystemExit(f"✗ {label} 必须是【非空】JSON 数组，实际 {type(data).__name__}")
+    fields = []
+    for step in data:
+        if not isinstance(step, dict):
+            continue
+        for item in step.get("items") or []:
+            if isinstance(item, dict) and item.get("field"):
+                fields.append(item["field"])
+    if required_field not in fields:
+        raise SystemExit(f"✗ {label} 缺少必需字段 {required_field}，实际字段 {fields}")
+    return size, len(data), fields
+
+s1, n1, f1 = load(sys.argv[1], "wizard/install", "wizard_data_library_type")
+s2, n2, f2 = load(sys.argv[2], "wizard/uninstall", "wizard_data_action")
+print(f"✓ wizard 校验通过：install {s1}B（{n1} 步，字段 {f1}）、uninstall {s2}B（{n2} 步，字段 {f2}）")
+PY
+
 echo "✓ 前置检查通过：version=$VERSION（来源 manifest）"
 
 # ── 1. 确定性打包 ─────────────────────────────────────────

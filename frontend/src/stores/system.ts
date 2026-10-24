@@ -210,9 +210,11 @@ export const useSystemStore = defineStore('system', () => {
       return
     }
 
-    // 默认飞牛网关直连模式
-    const gatewayUrl = `${window.location.origin}/app/deepseek-harness/fngateway/`
-    await trimSdk.openURL(gatewayUrl, '_blank')
+    // 双包形态：面板与本体是两个应用，DSH Web UI 在本体的直连端口上。
+    // 用当前浏览器的主机名拼端口，手机/别的电脑打开也能用；不再拼飞牛网关前缀
+    // （前缀是体本那边的事，面板下拼出来会 404）。
+    const uiPort = cfg?.proxy_port || 2299
+    await trimSdk.openURL(`http://${window.location.hostname}:${uiPort}/`, '_blank')
   }
 
   // 首屏快速拉取状态

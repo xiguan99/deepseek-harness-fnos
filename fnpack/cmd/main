@@ -17,7 +17,8 @@ DSH_RUN_USER="${wizard_dsh_run_user:-root}"
 export DATA_LIBRARY_PATH="${DATA_LIBRARY_PATH}"
 export DSH_RUN_USER="${DSH_RUN_USER}"
 
-CMD="${TRIM_APPDEST}/bin/deepseek.harness"
+APP_NAME="deepseek.harness"
+CMD="${TRIM_APPDEST}/bin/${APP_NAME}"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] $1" >> ${LOG_FILE}
@@ -32,7 +33,7 @@ start_process() {
         return 0
     fi
 
-    log_msg "正在启动 deepseek.harness 应用进程 (CMD=${CMD}, DATA_LIBRARY_PATH=${DATA_LIBRARY_PATH}, DSH_RUN_USER=${DSH_RUN_USER})..."
+    log_msg "正在启动 ${APP_NAME} 应用进程 (CMD=${CMD}, DATA_LIBRARY_PATH=${DATA_LIBRARY_PATH}, DSH_RUN_USER=${DSH_RUN_USER})..."
     if [ "${DSH_RUN_USER}" != "root" ] && id "${DSH_RUN_USER}" >/dev/null 2>&1; then
         su -s /bin/bash "${DSH_RUN_USER}" -c "${CMD}" &
     else
@@ -52,7 +53,7 @@ start_process() {
 }
 
 stop_process() {
-    log_msg "正在停止 deepseek.harness 应用进程..."
+    log_msg "正在停止 ${APP_NAME} 应用进程..."
 
     if [ -r "${PID_FILE}" ]; then
         pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')

@@ -1,30 +1,13 @@
 {
     ".url": {
         "deepseek.harness.Application": {
-            "title": "Harness Admin",
+            "title": "DeepSeek Harness",
             "icon": "images/icon_{0}.png",
-            "type": "iframe",
+            "type": "url",
             "protocol": "http",
-            "gatewaySocket": "web.sock",
-            "gatewayPrefix": "/app/deepseek-harness",
-            "url": "/app/deepseek-harness/",
-            "allUsers": false,
-            "control": {
-                "accessPerm": "readonly",
-                "fullUrlPerm": "readonly",
-                "portPerm": "readonly",
-                "pathPerm": "readonly"
-            }
-        },
-        "deepseek.harness.ui.Application": {
-            "title": "Harness WebUI",
-            "icon": "images/icon_{0}.png",
-            "type": "iframe",
-            "protocol": "http",
-            "gatewaySocket": "web.sock",
-            "gatewayPrefix": "/app/deepseek-harness",
-            "url": "/app/deepseek-harness/fngateway/",
-            "allUsers": false
+            "port": 2299,
+            "url": "/",
+            "allUsers": true
         }
     }
 }

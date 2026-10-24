@@ -50,6 +50,16 @@ assert "gatewaySocket" not in entry and "gatewayPrefix" not in entry, "不应再
 print(f"✓ ui/config 校验通过：{key} type=url port=2299 url=/")
 PY
 
+# install_callback 必须保证装完能自启：把 last_run_state 置为 running。
+# 否则「停着卸载 → 重装」的用户装完只有控制面、2298 不监听、桌面图标打不开，
+# 而那时面板可能还没装，用户没地方点启动（曾经踩过，是真实死循环）。
+CALLBACK="$SRC/cmd/install_callback"
+[ -f "$CALLBACK" ] || { red "✗ 缺少 cmd/install_callback"; exit 1; }
+grep -q "last_run_state" "$CALLBACK" || { red "✗ install_callback 没有写 last_run_state 的逻辑"; exit 1; }
+grep -q "'running'" "$CALLBACK" || grep -q '"running"' "$CALLBACK" || { red "✗ install_callback 没有把 last_run_state 置为 running"; exit 1; }
+grep -q "config.json" "$CALLBACK" || { red "✗ install_callback 没有操作 config.json"; exit 1; }
+echo "✓ install_callback 自启校验通过：装完会把 last_run_state 置为 running"
+
 # ── 2. 确定性打包（make-fpk.py：固定 mtime/uid/gid + gzip -n）──
 green "── 打包 $VERSION_MAIN"
 mkdir -p "$OUT"

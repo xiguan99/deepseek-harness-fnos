@@ -1,0 +1,37 @@
+[
+    {
+        "stepTitle": "面板配置",
+        "items": [
+            {
+                "type": "radio",
+                "field": "wizard_data_library_type",
+                "label": "面板数据位置",
+                "initValue": "data",
+                "options": [
+                    {
+                        "label": "数据目录 (Data) - 推荐",
+                        "value": "data"
+                    },
+                    {
+                        "label": "共享目录 (Share)",
+                        "value": "share"
+                    }
+                ],
+                "rules": [
+                    {
+                        "required": true,
+                        "message": "请选择面板数据位置"
+                    }
+                ]
+            },
+            {
+                "type": "tips",
+                "helpText": "<strong>安装前请确认：</strong>已安装 DeepSeek Harness 本体应用。面板只是管理与运维入口，不装本体面板无法工作。"
+            },
+            {
+                "type": "tips",
+                "helpText": "面板数据（访问密码、可信网段等设置）默认保存在 /vol1/@appdata/harness-panel，卸载时可选择保留。"
+            }
+        ]
+    }
+]

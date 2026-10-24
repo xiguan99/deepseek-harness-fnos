@@ -50,7 +50,54 @@ if [ -n "${DATA_LIBRARY_PATH}" ] && [ -d "${DATA_LIBRARY_PATH}" ]; then
     chmod -R u+rwX,g+rX,o+rX "${DATA_LIBRARY_PATH}" 2>/dev/null || true
 fi
 
-# 4. 清理可能残留的 Unix Socket
+# 4. 预置 last_run_state=running，保证装完就能用
+#
+# 背景：Go 主进程只在 config.json 的 last_run_state 为 running 时才拉起 DSH 本体
+# （harness.go:263）。用户若在「应用是停着的时候」卸载（卸载前点了停止，或升级时
+# 先 app stop），数据目录里会留下 last_run_state=stopped；装完只起控制面，2298 不
+# 监听、2299 反代后面是空的，桌面图标点开必然打不开；而此时面板可能还没装，用户
+# 也没地方点「启动」，等于死循环。
+#
+# install_callback 在 Go 主进程启动之前执行，这里把状态改成 running，Go 一启动就
+# 读到 running，DSH 本体自动拉起。只改这一个字段：文件已存在就合并（保留用户的端口、
+# 密码等设置），不存在就新建最小文件（Go 的 InitConfig 先填默认值再 unmarshal，
+# 缺字段会保留默认值，安全）。
+CONFIG_FILE="${DATA_LIBRARY_PATH}/config.json"
+if [ -n "${DATA_LIBRARY_PATH}" ]; then
+    NODE_BIN=""
+    for candidate in /var/apps/nodejs_v24/target/bin/node /usr/bin/node /usr/local/bin/node; do
+        if [ -x "${candidate}" ]; then NODE_BIN="${candidate}"; break; fi
+    done
+    if [ -n "${NODE_BIN}" ]; then
+        if "${NODE_BIN}" - "${CONFIG_FILE}" <<'NODEJS'
+const fs = require('fs');
+const path = require('path');
+const file = process.argv[2] || '';
+if (!file) process.exit(1);
+let data = {};
+try {
+  const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) data = parsed;
+} catch (err) {
+  data = {};
+}
+data.last_run_state = 'running';
+fs.mkdirSync(path.dirname(file), { recursive: true });
+const tmp = file + '.tmp-' + process.pid;
+fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 });
+fs.renameSync(tmp, file);
+NODEJS
+        then
+            log_msg "已将 last_run_state 置为 running（${CONFIG_FILE}），启动后会自动拉起 DSH 本体。"
+        else
+            log_err "预置 last_run_state 失败（${CONFIG_FILE}），装完可能需要手动点启动。"
+        fi
+    else
+        log_err "未找到 node，跳过 last_run_state 预置；若上次是停止状态，装完不会自启。"
+    fi
+fi
+
+# 5. 清理可能残留的 Unix Socket
 if [ -n "${TRIM_APPDEST}" ]; then
     rm -f "${TRIM_APPDEST}/web.sock"
 fi

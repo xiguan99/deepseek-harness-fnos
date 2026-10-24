@@ -203,6 +203,19 @@ def check_one(fp, rt, root, apps_root, want_version=None):
         if man.get("distributor") != "xiguan99":
             fails.append(f"distributor={man.get('distributor')!r} 期望 xiguan99")
 
+    # 8) install_callback 必须保证装完自启（停着卸载的用户靠这条才不至于打不开）
+    cbt = None
+    try:
+        with tarfile.open(fp) as t:
+            cbt = t.extractfile(t.getmember("cmd/install_callback")).read().decode("utf-8", "replace")
+    except KeyError:
+        fails.append("缺少 cmd/install_callback")
+    if cbt is not None:
+        has_cfg = "config.json" in cbt and "last_run_state" in cbt and "running" in cbt
+        facts["install_autostart"] = has_cfg
+        if not has_cfg:
+            fails.append("cmd/install_callback 未预置 last_run_state=running（停着卸载后重装不会自启）")
+
     readme = os.path.join(root, "README.md")
     readme_text = open(readme, encoding="utf-8").read() if os.path.exists(readme) else ""
     facts["readme_lineage"] = "本仓双包改造第 1 号补丁" in readme_text
@@ -303,6 +316,27 @@ def check_panel(fpk, root, apps_root=None, expect_version=None):
             facts["yuexps"] = hits
             if hits:
                 fails.append(f"app.tgz 内命中 yuexps：{hits}")
+        # wizard 必须非空：空数组会让应用中心空指针（code 10111 / APP_INSTALL_FAILED_PKG_EXCEPTION）
+        wz = {}
+        for nm in ("install", "uninstall"):
+            mp = os.path.join(tmp, "wizard", nm)
+            if not os.path.exists(mp):
+                fails.append(f"缺少 wizard/{nm}")
+                continue
+            size = os.path.getsize(mp)
+            wz[nm] = size
+            if size <= 100:
+                fails.append(f"wizard/{nm} 只有 {size} 字节，必须是真实配置（不能是空数组）")
+                continue
+            try:
+                arr = json.load(open(mp, encoding="utf-8"))
+            except Exception as exc:  # noqa: BLE001
+                fails.append(f"wizard/{nm} 不是合法 JSON：{exc}")
+                continue
+            if not isinstance(arr, list) or not arr:
+                fails.append(f"wizard/{nm} 必须是非空 JSON 数组")
+        facts["wizard_bytes"] = wz
+
         return fails, facts
 
 
