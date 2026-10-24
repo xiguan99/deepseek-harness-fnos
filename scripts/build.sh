@@ -8,9 +8,9 @@
 #   fnpack 1.2.3  → 仓库内 fnpack/fnpack-1.2.3-linux-amd64
 #
 # 目录约定：
-#   源码树  /vol1/1000/work/deepseek/dsh-src      （本脚本所在仓库）
-#   构建树  /vol1/1000/work/deepseek/dsh-build    （runtime/node_modules、二进制、产物）
-#   产物    $BUILD/dist/*.fpk
+#   源码树  /vol1/1000/work/deepseek/fnos-apps/deepseek.harness/src    （本脚本所在仓库）
+#   构建树  /vol1/1000/work/deepseek/fnos-apps/deepseek.harness/build  （runtime/node_modules、二进制）
+#   产物    /vol1/1000/work/deepseek/fnos-apps/deepseek.harness/dist/*.fpk
 #
 # ⚠️ 硬红线（务必遵守）：
 #   绝不在以下目录（含其任何子目录、以及 .bak/.old 之类兄弟目录）里做任何
@@ -29,11 +29,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD="${DSH_BUILD_DIR:-/vol1/1000/work/deepseek/dsh-build}"
+APPDIR="$(cd "${ROOT}/.." && pwd)"
+BUILD="${DSH_BUILD_DIR:-${APPDIR}/build}"
 TOOLS="/vol1/1000/work/deepseek/tools"
 NODE_BIN="/var/apps/nodejs_v24/target/bin"
 GO_BIN="${TOOLS}/go/bin"
-DIST="${BUILD}/dist"
+DIST="${APPDIR}/dist"
 APP_VER="$(tr -d '[:space:]' < "${ROOT}/VERSION")"
 RT_VER="$(tr -d '[:space:]' < "${ROOT}/RUNTIME_VERSION")"
 

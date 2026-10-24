@@ -105,7 +105,7 @@ def check_ports(root: pathlib.Path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", required=True, help="仓库根（dsh-src）")
+    ap.add_argument("--root", required=True, help="源码树根（deepseek.harness/src）")
     ap.add_argument("--runtime-dir", default=None, help="运行时 npm 工程目录")
     ap.add_argument("--tar", default=None, help="已打好的运行时 tar.gz")
     args = ap.parse_args()

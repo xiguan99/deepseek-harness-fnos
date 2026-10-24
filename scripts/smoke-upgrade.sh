@@ -18,10 +18,11 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD="${DSH_BUILD_DIR:-/vol1/1000/work/deepseek/dsh-build}"
+APPDIR="$(cd "${ROOT}/.." && pwd)"
+BUILD="${DSH_BUILD_DIR:-${APPDIR}/build}"
 APP_VER="$(tr -d '[:space:]' < "${ROOT}/VERSION")"
 RT_VER="$(tr -d '[:space:]' < "${ROOT}/RUNTIME_VERSION")"
-NEW_FPK="${BUILD}/dist/deepseek.harness_v${APP_VER}_x86.fpk"
+NEW_FPK="${APPDIR}/dist/deepseek.harness_v${APP_VER}_x86.fpk"
 
 WORK=/tmp/dshupgrade
 APPDEST="${WORK}/appdest"

@@ -7,8 +7,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/harness-panel/fnpack"
-BUILD_ROOT="${DSH_BUILD:-/vol1/1000/work/deepseek/dsh-build}"
-OUT="$BUILD_ROOT/dist"
+APPDIR="$(cd "${ROOT}/.." && pwd)"
+BUILD_ROOT="${DSH_BUILD:-${APPDIR}/build}"
+OUT="${APPDIR}/dist"
 # 版本唯一来源是 manifest：面板包不带 VERSION 文件（两个来源会漂移）
 VERSION="$(grep -E '^version' "$SRC/manifest" | head -1 | sed 's/.*=\s*//' | tr -d '[:space:]')"
 
@@ -17,7 +18,7 @@ red() { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 
 # ── 0. 自检 ────────────────────────────────────────────────
 python3 "$ROOT/scripts/check-icon.py" --src "$SRC" --name harness-panel \
-  --apps-root /vol1/1000/work/deepseek/fnos-apps --extra /vol1/1000/work/deepseek/dsh-src/fnpack || exit 1
+  --apps-root /vol1/1000/work/deepseek/fnos-apps --extra "$ROOT/fnpack" || exit 1
 # 图标必须 644：应用中心按 /var/apps/<app>/ICON.PNG 取图，若以组身份读取，
 # 组无读权限（如 705）会退回默认占位图（1.0.0 首次装机踩过）
 for _icon in "$SRC/ICON.PNG" "$SRC/ICON_256.PNG"; do

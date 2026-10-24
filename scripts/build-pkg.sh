@@ -9,10 +9,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/fnpack"
-BUILD_ROOT="${DSH_BUILD:-/vol1/1000/work/deepseek/dsh-build}"
+APPDIR="$(cd "${ROOT}/.." && pwd)"
+BUILD_ROOT="${DSH_BUILD:-${APPDIR}/build}"
 RUNTIME_TAR="$BUILD_ROOT/deepseek-harness.tar.gz"
 BIN="$BUILD_ROOT/bin/deepseek.harness"
-OUT="$BUILD_ROOT/dist"
+OUT="${APPDIR}/dist"
 VERSION_MAIN="0.2.1-rc.3.1"
 RUNTIME_VERSION="$(tr -d '[:space:]' < "$ROOT/RUNTIME_VERSION")"
 
@@ -23,7 +24,7 @@ red() { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 [ -f "$BIN" ] || { red "✗ 缺少 Go 二进制 $BIN（先跑 go build）"; exit 1; }
 [ -f "$RUNTIME_TAR" ] || { red "✗ 缺少运行时包 $RUNTIME_TAR"; exit 1; }
 python3 "$ROOT/scripts/check-icon.py" --src "$SRC" --name deepseek-harness \
-  --apps-root /vol1/1000/work/deepseek/fnos-apps --extra /vol1/1000/work/deepseek/dsh-src/fnpack || exit 1
+  --apps-root /vol1/1000/work/deepseek/fnos-apps --extra "$ROOT/fnpack" || exit 1
 python3 "$ROOT/scripts/check-version.py" --root "$ROOT" \
   --runtime-dir "$BUILD_ROOT/runtime" --tar "$RUNTIME_TAR" || exit 1
 

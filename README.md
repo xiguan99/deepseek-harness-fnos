@@ -136,7 +136,7 @@
 cd frontend && npm ci && npm run build
 
 # 2) Go 二进制（内嵌前端 dist）
-go build -trimpath -ldflags="-s -w" -o ../dsh-build/bin/deepseek.harness .
+go build -trimpath -ldflags="-s -w" -o ../build/bin/deepseek.harness .
 
 # 3) 运行时 tar 与打包（含包纹核对）
 bash scripts/build.sh
