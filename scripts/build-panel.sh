@@ -18,6 +18,11 @@ red() { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 # ── 0. 自检 ────────────────────────────────────────────────
 python3 "$ROOT/scripts/check-icon.py" --src "$SRC" --name harness-panel \
   --apps-root /vol1/1000/work/deepseek/fnos-apps --extra /vol1/1000/work/deepseek/dsh-src/fnpack || exit 1
+# 图标必须 644：应用中心按 /var/apps/<app>/ICON.PNG 取图，若以组身份读取，
+# 组无读权限（如 705）会退回默认占位图（1.0.0 首次装机踩过）
+for _icon in "$SRC/ICON.PNG" "$SRC/ICON_256.PNG"; do
+  [ -f "$_icon" ] && chmod 644 "$_icon"
+done
 [ -n "$VERSION" ] || { red "✗ manifest 里没有 version 行"; exit 1; }
 # 面板走独立的 1.x 版本线，防止误把本体的 0.2.1-rc.x 写进来
 case "$VERSION" in

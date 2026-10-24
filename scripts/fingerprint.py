@@ -12,7 +12,7 @@
 
 用法：
   python3 scripts/fingerprint.py --root <源码根> --rt 0.2.1-rc.2 \
-      --main dist/deepseek.harness_v0.2.1-rc.2.1_x86.fpk \
+      --main dist/deepseek.harness_v0.2.1-rc.3.1_x86.fpk \
       [--alt dist/deepseek.harness_v0.4.2_x86.fpk] \
       [--apps-root /vol1/1000/work/deepseek/fnos-apps]
 退出码非 0 表示有检查项不通过。
@@ -24,6 +24,7 @@ import io
 import json
 import os
 import re
+import stat
 import struct
 import sys
 import tarfile
@@ -163,6 +164,15 @@ def check_one(fp, rt, root, apps_root, want_version=None):
             fails.append(f"ICON_256 尺寸 {w}x{h}")
         ca = corner_alpha(icon)
         facts["icon_corners"] = ca
+        # 权限：应用中心按 /var/apps/<app>/ICON.PNG 取图，若以组身份读取，
+        # 组无读权限（如 705）会退回默认占位图 —— harness-panel 1.0.0 装机踩过
+        for nm in ("ICON.PNG", "ICON_256.PNG"):
+            ip = os.path.join(d, nm)
+            if os.path.exists(ip):
+                mode = stat.S_IMODE(os.stat(ip).st_mode)
+                facts[f"icon_mode_{nm}"] = oct(mode)
+                if not (mode & 0o040):
+                    fails.append(f"{nm} 权限 {oct(mode)} 组不可读，应用中心会显示占位图")
         if ca is not None and any(a != 0 for a in ca):
             fails.append(f"图标四角不透明：{ca}")
         if apps_root and os.path.isdir(apps_root):
@@ -275,6 +285,16 @@ def check_panel(fpk, root, apps_root=None, expect_version=None):
                 for other in sorted(pathlib.Path(apps_root).glob("*/fnpack*/ICON_256.PNG")):
                     if sha_bytes(open(other, "rb").read()) == mine:
                         fails.append(f"图标与 {other} 重复")
+
+            # 权限：应用中心按 /var/apps/<app>/ICON.PNG 取图，若它以组身份读取，
+            # 组无读权限（如 705）会退回默认占位图 —— harness-panel 1.0.0 装机踩过
+            for nm in ("ICON.PNG", "ICON_256.PNG"):
+                ip = os.path.join(tmp, nm)
+                if os.path.exists(ip):
+                    mode = stat.S_IMODE(os.stat(ip).st_mode)
+                    facts[f"icon_mode_{nm}"] = oct(mode)
+                    if not (mode & 0o040):
+                        fails.append(f"{nm} 权限 {oct(mode)} 组不可读，应用中心会显示占位图")
 
         # app.tgz 内：ui/config + fnshell + 前端产物
         app_tgz = os.path.join(tmp, "app.tgz")

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 打本体包 deepseek.harness（版本取 VERSION，当前 0.2.1-rc.2.1）
+# 打本体包 deepseek.harness（版本取 VERSION，当前 0.2.1-rc.3.1）
 #
 # 确定性：同一份源码 + 同一份 dist，连跑多次 sha256 完全一致
 # （make-fpk.py 固定 mtime/uid/gid，gzip -n 不写时间戳）。
@@ -13,7 +13,7 @@ BUILD_ROOT="${DSH_BUILD:-/vol1/1000/work/deepseek/dsh-build}"
 RUNTIME_TAR="$BUILD_ROOT/deepseek-harness.tar.gz"
 BIN="$BUILD_ROOT/bin/deepseek.harness"
 OUT="$BUILD_ROOT/dist"
-VERSION_MAIN="0.2.1-rc.2.1"
+VERSION_MAIN="0.2.1-rc.3.1"
 RUNTIME_VERSION="$(tr -d '[:space:]' < "$ROOT/RUNTIME_VERSION")"
 
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -32,6 +32,11 @@ green "── 组装应用载荷（运行时 $RUNTIME_VERSION）"
 mkdir -p "$SRC/app/bin" "$SRC/app/ui"
 cp "$BIN" "$SRC/app/bin/deepseek.harness"
 chmod 0755 "$SRC/app/bin/deepseek.harness"
+# 图标必须 644：应用中心按 /var/apps/<app>/ICON.PNG 取图，若以组身份读取，
+# 组无读权限（如 705）会退回默认占位图（harness-panel 1.0.0 首次装机踩过）
+for _icon in "$SRC/ICON.PNG" "$SRC/ICON_256.PNG"; do
+  [ -f "$_icon" ] && chmod 644 "$_icon"
+done
 cp "$RUNTIME_TAR" "$SRC/app/deepseek-harness.tar.gz"
 printf '%s\n' "$RUNTIME_VERSION" > "$SRC/app/.version"
 
