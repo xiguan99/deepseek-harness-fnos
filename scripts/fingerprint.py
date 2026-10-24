@@ -319,6 +319,12 @@ def check_panel(fpk, root, apps_root=None, expect_version=None):
                 fails.append("fnshell.py 未注入控制令牌")
             if not facts["shell_ws_fix"]:
                 fails.append("fnshell.py 缺 WebSocket 升级头修正")
+            # 网关 socket 权限必须是 0660（root-only）。
+            # 实测链路：nginx /app/ → trim_http_cgi（root）→ 本 socket，
+            # www-data 从不直接连它，所以 0660 既能被网关打开，又不放开给本机任意用户。
+            facts["socket_mode_mode"] = "0o660" if "0o660" in shell else ("0o666" if "0o666" in shell else "unknown")
+            if "0o660" not in shell:
+                fails.append(f"fnshell.py 网关 socket 权限应为 0660，实际标记 {facts['socket_mode_mode']}")
             js = [m for m in at.getnames() if m.endswith(".js") and "panel_dist/assets/" in m]
             body = "".join(at.extractfile(m).read().decode("utf-8", "ignore") for m in js)
             facts["ws_relative"] = "location.pathname" in body and "app/deepseek-harness/api/ws" not in body
