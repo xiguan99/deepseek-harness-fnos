@@ -15,10 +15,8 @@ import (
 // 只认形如 v0.4.1 / 0.4.1.1 / v0.2.1-rc.2 / v0.2.2-alpha.2.1 的 tag。
 var appTagVersionRe = regexp.MustCompile(`^v?\d+(\.\d+){1,3}(-[0-9A-Za-z.]+)?$`)
 
-// 应用包（fnOS 套件）的发布仓库。新包发在新仓，老仓里还有历史版本，
-// 两个都查一遍取最高——只查一个会出现"明明发了新版，面板却说没有"。
+// 应用包（fnOS 套件）的发布仓库。只认我们自己的仓；别的 fork 不能当更新源。
 var appReleaseRepos = []string{
-	"xiguan99/deepseek.harness.fnos",
 	"xiguan99/deepseek-harness-fnos",
 }
 

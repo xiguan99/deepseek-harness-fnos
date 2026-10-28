@@ -237,8 +237,7 @@ const handleMenuSelect = (key: string) => {
 const currentView = computed(() => views[tab.value])
 
 function openRepo() {
-  // 新包统一发在 deepseek.harness.fnos（同名 fork，历史与上游一致）
-  const repo = 'https://github.com/xiguan99/deepseek.harness.fnos'
+  const repo = 'https://github.com/xiguan99/deepseek-harness-fnos'
   trimSdk.openURL(appHasUpdate.value ? `${repo}/releases` : repo, '_blank')
 }
 

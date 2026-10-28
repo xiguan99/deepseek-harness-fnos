@@ -1,5 +1,5 @@
 appname               = harness-panel
-version               = 1.0.2
+version               = 1.0.3
 display_name          = Harness Panel
 icon                  = ICON.PNG
 desc                  = DeepSeek Harness 管理面板（独立应用），共 7 个页面：概览、工作区、授权、插件、快照、日志、设置。<br/>需搭配 DeepSeek Harness 本体使用（本体对外 2299，控制面 127.0.0.1:2297）。<br/>桌面图标在飞牛 web 内打开（网关 /app/harness-panel），直连 http://主机IP:2296/ 仅供排障。<br/>面板走独立 1.x 版本线。
