@@ -37,8 +37,24 @@
                 </n-tag>
               </div>
               <div
-                class="text-xs sm:text-sm text-slate-400 dark:text-slate-500 flex items-center gap-1.5 sm:gap-2 flex-nowrap min-w-0">
-                <span class="shrink-0">版本: {{ formatVersion(statusData.version) }}</span>
+                class="text-xs sm:text-sm text-slate-400 dark:text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+                <span class="shrink-0 inline-flex items-center gap-1">
+                  内置 DSH:
+                  <span class="font-mono text-slate-600 dark:text-slate-300">{{ formatVersion(statusData.version) }}</span>
+                </span>
+                <span v-if="statusData.app_version" class="shrink-0 inline-flex items-center gap-1">
+                  · 包版本:
+                  <span class="font-mono text-slate-600 dark:text-slate-300">{{ formatVersion(statusData.app_version) }}</span>
+                  <n-tag v-if="statusData.app_is_prerelease" size="tiny" round :bordered="false"
+                    class="font-medium bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">预览版</n-tag>
+                </span>
+                <span v-if="statusData.upstream_version" class="shrink-0 inline-flex items-center gap-1">
+                  · 上游最新:
+                  <span class="font-mono text-slate-600 dark:text-slate-300">{{ formatVersion(statusData.upstream_version) }}</span>
+                  <n-tag v-if="statusData.upstream_is_prerelease" size="tiny" round :bordered="false"
+                    class="font-medium bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">预览版</n-tag>
+                  <span v-if="upstreamAhead" class="text-fnos-blue dark:text-blue-400 font-medium">· 官方已更新</span>
+                </span>
               </div>
             </div>
 
@@ -268,6 +284,20 @@ const runtimeUpgradeAllowed = computed(() => Boolean(runtimeConfig.value.allow_r
 const showUpdateModal = ref(false)
 const updateInfo = ref<CheckUpdateResult | null>(null)
 const targetVersion = computed(() => statusData.value.target_version || '')
+
+// 官方上游比内置运行时新：只在同一条线（前两段相同）时提示，跨大版本不瞎提醒。
+// 比较用数字段，避免字符串比较把 0.2.10 判成小于 0.2.9。
+function verParts(v?: string): number[] {
+  const m = String(v || '').replace(/^v/, '').match(/^(\d+)\.(\d+)\.(\d+)/)
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : []
+}
+const upstreamAhead = computed(() => {
+  const cur = verParts(statusData.value.version)
+  const up = verParts(statusData.value.upstream_version)
+  if (cur.length < 3 || up.length < 3) return false
+  if (cur[0] !== up[0] || cur[1] !== up[1]) return false
+  return up[2] > cur[2]
+})
 
 function goToSnapshots() {
   showUpdateModal.value = false

@@ -29,6 +29,14 @@ export interface StatusData {
   app_version?: string
   app_remote_version?: string
   app_has_update?: boolean
+  /** 当前安装的包版本号里带 -alpha/-beta/-rc（预览版） */
+  app_is_prerelease?: boolean
+  /** 远端最新包版本是否预览版 */
+  app_remote_is_prerelease?: boolean
+  /** 官方上游（DSH 运行时）最新版本，如 0.2.2-alpha.2 */
+  upstream_version?: string
+  /** 官方上游最新版是否预览版（alpha/beta/rc） */
+  upstream_is_prerelease?: boolean
   target_version?: string
   status: ServiceStatus
   uptime: string

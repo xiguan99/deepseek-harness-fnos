@@ -171,12 +171,23 @@ func statusPayload() gin.H {
 	var appVerVal any
 	var appRemoteVerVal any
 	appHasUpdate := false
+	appIsPrerelease := false
+	appRemoteIsPrerelease := false
 	if appVer := globalAppVer; appVer != "" {
 		appVerVal = appVer
+		appIsPrerelease = isPrereleaseVersion(appVer)
 		appHasUpdate = checkAppHasUpdate(appVer)
 		if remoteVer := getAppRemoteVersion(); remoteVer != "" {
 			appRemoteVerVal = remoteVer
+			appRemoteIsPrerelease = getAppRemoteIsPrerelease()
 		}
+	}
+
+	var upstreamVerVal any
+	upstreamIsPrerelease := false
+	if upVer := getUpstreamVersion(); upVer != "" {
+		upstreamVerVal = upVer
+		upstreamIsPrerelease = getUpstreamIsPrerelease()
 	}
 
 	cpuVal, memVal := GetCachedDshUsage()
@@ -187,6 +198,12 @@ func statusPayload() gin.H {
 		"app_version":        appVerVal,
 		"app_remote_version": appRemoteVerVal,
 		"app_has_update":     appHasUpdate,
+		"app_is_prerelease":        appIsPrerelease,
+		"app_remote_is_prerelease": appRemoteIsPrerelease,
+		// 官方上游（DSH 运行时）最新版本，与 app_remote_version（我们自己的包版本）不是一回事：
+		// 前者答"官方走到哪了"，后者答"有没有新包要装"。
+		"upstream_version":        upstreamVerVal,
+		"upstream_is_prerelease":  upstreamIsPrerelease,
 		"target_version":     targetVersion,
 		"status":             status,
 		"uptime":             uptimeVal,

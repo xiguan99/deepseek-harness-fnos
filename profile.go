@@ -338,7 +338,9 @@ var (
 	re404Pkg       = regexp.MustCompile(`(?:GET|fetch)\s+\S*\/([^/\s:]+)(?::|\s)`)
 	reTransientNet = regexp.MustCompile(`(?i)(?:ERR_PNPM_FETCH_5\d\d|ERR_PNPM_META_FETCH_FAIL|FetchError|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|socket hang up|network timeout)`)
 	reFetchTimeout = regexp.MustCompile(`(?i)(?:operation was aborted due to timeout|TimeoutError|error \(23\))`)
-	semverPattern  = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$`)
+	// 允许四段版本：a.b.c(.d)(-pre)。第四段是 fnOS 打包补丁号（如 0.4.1.1 / 0.2.1.1），
+	// 用来区分"同一个上游版本打了多次包"；比较时排在 patch 之后、pre 之前。
+	semverPattern = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$`)
 )
 
 // ClassifyPnpmFailure 分类 pnpm 失败原因
@@ -459,7 +461,9 @@ type parsedSemver struct {
 	Major int
 	Minor int
 	Patch int
-	Pre   []string
+	// Revision 是四段版本的第四段（打包补丁号）。两段/三段写法时为 0。
+	Revision int
+	Pre      []string
 }
 
 func parseSemver(v string) (parsedSemver, bool) {
@@ -475,12 +479,16 @@ func parseSemver(v string) (parsedSemver, bool) {
 	maj, _ := strconv.Atoi(m[1])
 	min, _ := strconv.Atoi(m[2])
 	pat, _ := strconv.Atoi(m[3])
+	rev := 0
+	if m[4] != "" {
+		rev, _ = strconv.Atoi(m[4])
+	}
 
 	var pre []string
-	if m[4] != "" {
-		pre = strings.Split(m[4], ".")
+	if m[5] != "" {
+		pre = strings.Split(m[5], ".")
 	}
-	return parsedSemver{Major: maj, Minor: min, Patch: pat, Pre: pre}, true
+	return parsedSemver{Major: maj, Minor: min, Patch: pat, Revision: rev, Pre: pre}, true
 }
 
 // CompareSemver 比较语义化版本: v1 > v2 返回 1; v1 < v2 返回 -1; 相等返回 0
@@ -508,6 +516,12 @@ func CompareSemver(v1, v2 string) int {
 	}
 	if p1.Patch != p2.Patch {
 		if p1.Patch > p2.Patch {
+			return 1
+		}
+		return -1
+	}
+	if p1.Revision != p2.Revision {
+		if p1.Revision > p2.Revision {
 			return 1
 		}
 		return -1

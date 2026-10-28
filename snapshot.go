@@ -352,6 +352,32 @@ type SnapshotMeta struct {
 	HarnessVersion   string `json:"harness_version"`
 	PluginCount      int    `json:"plugin_count"`
 	CompressionLevel int    `json:"compression_level,omitempty"`
+	// 快照数据布局版本（由 snapshotSchemaVersion 定义）；老快照没有该字段，值为 0
+	SchemaVersion int `json:"schema_version,omitempty"`
+}
+
+// 快照数据布局版本：只有"打包内容结构"变了才递增。
+// 原先还原门槛写的是 CompareSemver(meta.AppVersion, "0.3.1") < 0，
+// 那是给老架构做的一次性门槛，副作用是 0.2.x 包自己生成的快照永远被拦——
+// 越升级越拦自己。改为按布局版本判定，同一条上游线的快照都能还原。
+const snapshotSchemaVersion = 2
+
+// checkSnapshotCompatible 判断快照能否在当前版本还原
+func checkSnapshotCompatible(meta SnapshotMeta) error {
+	if meta.SchemaVersion >= snapshotSchemaVersion {
+		return nil
+	}
+	// 老快照没有布局版本：同一上游线（major.minor 相同）才认为结构兼容
+	cur, okCur := parseSemver(strings.TrimPrefix(strings.TrimSpace(readVersion()), "v"))
+	snap, okSnap := parseSemver(strings.TrimPrefix(strings.TrimSpace(meta.HarnessVersion), "v"))
+	if !okCur || !okSnap {
+		return fmt.Errorf("该快照缺少布局版本信息，且运行版本无法识别（快照 v%s），无法安全还原", meta.HarnessVersion)
+	}
+	if cur.Major == snap.Major && cur.Minor == snap.Minor {
+		return nil
+	}
+	return fmt.Errorf("该快照来自内置运行 v%d.%d（当前 v%d.%d），数据布局不同，无法还原",
+		snap.Major, snap.Minor, cur.Major, cur.Minor)
 }
 
 // CreateSnapshotParams 创建快照参数
@@ -562,6 +588,7 @@ func CreateSnapshot(params CreateSnapshotParams) (retMeta *SnapshotMeta, err err
 		HarnessVersion:   harnessVer,
 		PluginCount:      pluginCount,
 		CompressionLevel: level,
+		SchemaVersion:    snapshotSchemaVersion,
 	}
 
 	LogInfo("[快照] 开始打包快照 [%s]: 名称=\"%s\", 压缩级别=Lv%d, 插件数=%d", id, meta.Name, level, pluginCount)
@@ -948,8 +975,8 @@ func ValidateSnapshotForRestore(id string) (*SnapshotMeta, error) {
 		return nil, fmt.Errorf("解析快照元数据失败: %w", err)
 	}
 
-	if meta.AppVersion == "" || CompareSemver(meta.AppVersion, "0.3.1") < 0 {
-		return nil, fmt.Errorf("该快照生成自旧版源码架构 (v%s < v0.3.1)，已不兼容当前版本，无法还原", meta.AppVersion)
+	if err := checkSnapshotCompatible(meta); err != nil {
+		return nil, err
 	}
 
 	tarPath := filepath.Join(snapDir, "data.tar.gz")

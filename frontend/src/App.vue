@@ -37,7 +37,7 @@
                         </div>
                       </div>
                     </template>
-                    <span>{{ appHasUpdate ? `发现新版本${appRemoteVersion ? ' v' + appRemoteVersion.replace(/^v/, '') : ''} ，前往 GitHub Releases 下载` : '访问 GitHub 仓库' }}</span>
+                    <span>{{ appHasUpdate ? `发现新版本${appRemoteVersion ? ' v' + appRemoteVersion.replace(/^v/, '') : ''}${appRemoteIsPrerelease ? '（预览版）' : ''}，前往 GitHub Releases 下载` : '访问 GitHub 仓库' }}</span>
                   </n-tooltip>
 
                   <!-- 主导航菜单 -->
@@ -147,6 +147,8 @@ const systemStore = useSystemStore()
 const appVersion = computed(() => systemStore.statusData.app_version)
 const appRemoteVersion = computed(() => systemStore.statusData.app_remote_version)
 const appHasUpdate = computed(() => systemStore.statusData.app_has_update)
+const appIsPrerelease = computed(() => !!systemStore.statusData.app_is_prerelease)
+const appRemoteIsPrerelease = computed(() => !!systemStore.statusData.app_remote_is_prerelease)
 const osTheme = useOsTheme()
 const themeMode = ref<'light' | 'dark'>(osTheme.value === 'dark' ? 'dark' : 'light')
 
@@ -235,10 +237,9 @@ const handleMenuSelect = (key: string) => {
 const currentView = computed(() => views[tab.value])
 
 function openRepo() {
-  const url = appHasUpdate.value
-    ? 'https://github.com/xiguan99/deepseek-harness-fnos/releases'
-    : 'https://github.com/xiguan99/deepseek-harness-fnos'
-  trimSdk.openURL(url, '_blank')
+  // 新包统一发在 deepseek.harness.fnos（同名 fork，历史与上游一致）
+  const repo = 'https://github.com/xiguan99/deepseek.harness.fnos'
+  trimSdk.openURL(appHasUpdate.value ? `${repo}/releases` : repo, '_blank')
 }
 
 onMounted(() => {

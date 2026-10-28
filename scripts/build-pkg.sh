@@ -14,7 +14,7 @@ BUILD_ROOT="${DSH_BUILD:-${APPDIR}/build}"
 RUNTIME_TAR="$BUILD_ROOT/deepseek-harness.tar.gz"
 BIN="$BUILD_ROOT/bin/deepseek.harness"
 OUT="${APPDIR}/dist"
-VERSION_MAIN="0.2.1-rc.3.1"
+VERSION_MAIN="$(tr -d '[:space:]' < "$ROOT/VERSION")"
 RUNTIME_VERSION="$(tr -d '[:space:]' < "$ROOT/RUNTIME_VERSION")"
 
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
