@@ -1,5 +1,5 @@
 appname               = deepseek.harness
-version               = 0.2.2-alpha.2.3
+version               = 0.2.2-alpha.2.4
 display_name          = DeepSeek Harness
 desc                  = DeepSeek Harness 的飞牛 OS 原生打包版，分本体与面板两个应用：<br/>• 本体（本应用）：DSH 服务 + Web UI，桌面图标直达 http://主机IP:2299/<br/>• 面板（另装 harness-panel）：概览、工作区、授权、插件、快照、日志、设置 共 7 个页面<br/>版本口径：0.2.1-rc.3.1 = 官方运行时 0.2.1-rc.3 + 本仓双包改造第 1 号补丁
 platform              = x86

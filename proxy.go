@@ -355,10 +355,8 @@ func startReverseProxyLocked() error {
 				pr.Out.Header.Set("Cookie", appendDshSessionCookie(pr.In.Header.Get("Cookie"), session))
 			}
 
-			// 还原被折叠的 /plugins/?? 多路复用请求
-			if pr.Out.URL.Path == "/plugins/" && !strings.HasPrefix(pr.Out.URL.RawQuery, "?") && strings.Contains(pr.Out.URL.RawQuery, "client.js") {
-				pr.Out.URL.RawQuery = "?" + pr.Out.URL.RawQuery
-			}
+			// 还原被折叠的 /plugins/?? 多路复用请求（按原始 RequestURI 逐字节还原）
+			restoreComboURI(pr, "")
 
 			// 拦截并改写 account/startSignIn 请求中的 callbackOrigin
 			if pr.Out.Body != nil && strings.Contains(pr.Out.URL.Path, "startSignIn") {
@@ -566,4 +564,27 @@ func applyDshHtmlNoStore(header http.Header) {
 	header.Set("Expires", "0")
 	header.Del("ETag")
 	header.Del("Last-Modified")
+}
+
+// restoreComboURI 还原 dsh 的 "/plugins/??<res>&rev=<rev>??..." 折叠多路复用请求。
+// Go 的 URL 解析会把路径里第一个 "?" 当成查询分隔符，导致转发后上游拿到的
+// 请求行与浏览器发出的不一致，进而 404（前端表现为 client.js 未预加载）。
+// 这里按原始 RequestURI 逐字节还原，确保上游收到的请求行与原请求一致。
+func restoreComboURI(pr *httputil.ProxyRequest, stripPrefix string) {
+	raw := pr.In.RequestURI
+	idx := strings.Index(raw, "/plugins/??")
+	if idx < 0 {
+		return
+	}
+	marker := idx + len("/plugins/")
+	outPath := raw[:marker]
+	if stripPrefix != "" {
+		outPath = strings.TrimPrefix(outPath, stripPrefix)
+	}
+	if !strings.HasPrefix(outPath, "/") {
+		outPath = "/" + outPath
+	}
+	pr.Out.URL.Path = outPath
+	pr.Out.URL.RawPath = ""
+	pr.Out.URL.RawQuery = raw[marker+1:]
 }

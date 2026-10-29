@@ -82,10 +82,8 @@ func handleFnGateway(c *gin.Context) {
 				pr.Out.Header.Set("Cookie", appendDshSessionCookie(c.Request.Header.Get("Cookie"), session))
 			}
 
-			// 还原被折叠的 /plugins/?? 多路复用请求
-			if (p == "/plugins/" || strings.HasSuffix(p, "/plugins/")) && !strings.HasPrefix(pr.Out.URL.RawQuery, "?") && strings.Contains(pr.Out.URL.RawQuery, "client.js") {
-				pr.Out.URL.RawQuery = "?" + pr.Out.URL.RawQuery
-			}
+			// 还原被折叠的 /plugins/?? 多路复用请求（按原始 RequestURI 逐字节还原）
+			restoreComboURI(pr, fnGatewayPrefix)
 
 			// 拦截并改写 account/startSignIn 请求中的 callbackOrigin
 			if pr.Out.Body != nil && strings.Contains(pr.Out.URL.Path, "startSignIn") {
