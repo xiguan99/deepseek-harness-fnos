@@ -60,6 +60,17 @@ func main() {
 	runtimeDir = filepath.Join(globalPkgVar, "dsh-runtime")
 
 	InitLogger()
+
+	// 运维入口：只跑一次「profile 插件版本对齐」就退出。
+	// 用于装机前自检与现场救急（不启动本体、不碰端口）。
+	for _, a := range os.Args[1:] {
+		if a == "--align-profile-only" {
+			LogInfo("[主程序] 仅执行插件版本对齐（--align-profile-only）")
+			alignProfilePlugins()
+			return
+		}
+	}
+
 	LogInfo("[主程序] 服务启动初始化 (DATA_LIBRARY_PATH=%s, TRIM_APPDEST=%s, TRIM_APPVER=%s, DSH_RUN_USER=%s)", globalPkgVar, globalAppDest, globalAppVer, globalRunUser)
 
 	sigCh := make(chan os.Signal, 1)

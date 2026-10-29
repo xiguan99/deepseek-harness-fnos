@@ -151,9 +151,16 @@ func EvaluateDeploymentPolicy(tarPath string) (shouldDeploy bool, isUpgrade bool
 		return true, false, fmt.Sprintf("运行环境未就绪，准备部署内置安装包 (v%s)", zipVer)
 	}
 
-	// 仅在安装包版本高于本地运行版本时执行升级
-	if zipVer != "" && installedVer != "" && CompareSemver(zipVer, installedVer) > 0 {
-		return true, true, fmt.Sprintf("检测到新版本安装包 (v%s → v%s)，准备升级部署", installedVer, zipVer)
+	// 安装包版本与本地运行版本不一致就部署：既要能升级，也要能回退。
+	// 历史问题：这里原来只在 zipVer > installedVer 时部署，导致用户装回旧版包时
+	// 核心始终停在旧的高版本（0.2.2-alpha.2），包版本/核心版本/插件版本三处口径不一致。
+	if zipVer != "" && installedVer != "" && CompareSemver(zipVer, installedVer) != 0 {
+		action := "升级"
+		if CompareSemver(zipVer, installedVer) < 0 {
+			action = "回退"
+		}
+		return true, CompareSemver(zipVer, installedVer) > 0,
+			fmt.Sprintf("检测到安装包版本变化 (v%s → v%s)，准备%s部署", installedVer, zipVer, action)
 	}
 
 	// 默认保留本地运行环境与在线更新
@@ -446,6 +453,10 @@ func startLocked() error {
 	if _, err := os.Stat(credFile); err == nil {
 		_ = os.Chmod(credFile, 0600)
 	}
+
+	// 每次拉起本体前，先把 profile 里钉死的核心插件版本对齐到随包运行时版本。
+	// 否则核心升级后旧版插件会被运行时以 incompatible 整套禁用（"插件全灭"）。
+	alignProfilePlugins()
 
 	cfg := GetConfig()
 	port := cfg.GetServerPort()
