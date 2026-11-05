@@ -63,8 +63,19 @@ wait_http() { # wait_http <url> <秒>
   return 1
 }
 
-api() { # api <path>
-  curl -s --unix-socket "${APPDEST}/web.sock" "http://localhost/app/deepseek-harness${1}"
+ctl_token() {
+  [ -f "${VAR}/control.token" ] && tr -d '\r\n' < "${VAR}/control.token"
+}
+
+api() { # api <path>（/api/* 控制接口需 X-DSH-Control-Token，令牌由本体写入 control.token）
+  curl -s -H "X-DSH-Control-Token: $(ctl_token)" --unix-socket "${APPDEST}/web.sock" \
+    "http://localhost/app/deepseek-harness${1}"
+}
+
+api_post() { # api_post <json body> <outfile>，打印 HTTP 状态码
+  curl -s -o "$2" -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+    -H "X-DSH-Control-Token: $(ctl_token)" --unix-socket "${APPDEST}/web.sock" -d "$1" \
+    "http://localhost/app/deepseek-harness/api/action"
 }
 
 json_field() { # 响应结构 {"code":0,"message":"success","data":{...}}
@@ -177,10 +188,54 @@ GW_SIZE="$(stat -c%s /tmp/gw.html 2>/dev/null || echo 0)"
 TOKEN_LINES2="$(grep -c 'token=' "${VAR}/harness.log" 2>/dev/null || true)"; TOKEN_LINES2="${TOKEN_LINES2:-0}"
 [ "${TOKEN_LINES2}" -ge 2 ] && ok "升级后再次抓到 token（日志累计 ${TOKEN_LINES2} 行）" || bad "升级后未抓到 token"
 
-UP_CODE="$(curl -s -o /tmp/up.json -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
-  --unix-socket "${APPDEST}/web.sock" -d '{"action":"upgrade"}' \
-  "http://localhost/app/deepseek-harness/api/action")"
-grep -q '在线升级运行时已关闭' /tmp/up.json 2>/dev/null && ok "在线升级仍被拦截（${UP_CODE}，提示文案在）" || bad "在线升级拦截异常（${UP_CODE}）"
+UP_CODE="$(api_post '{"action":"upgrade"}' /tmp/up.json)"
+grep -q '在线升级运行时已关闭' /tmp/up.json 2>/dev/null && ok "未开启允许时在线升级被拦截（${UP_CODE}，提示文案在）" || bad "在线升级拦截异常（${UP_CODE}）"
+
+# ── 在线升级链路：alpha.2 → rc.1（通道 next 必须解析到 rc 预览线）──
+echo "  准备在线升级：通道 next、允许升级、把运行时降级到 alpha.2"
+python3 - "${VAR}/config.json" <<'PYCFG'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+d["allow_runtime_upgrade"] = True
+d["update_channel"] = "next"
+d["npm_registry"] = "https://registry.npmmirror.com"
+d["version"] = "0.2.2-alpha.2"
+json.dump(d, open(p, "w"), ensure_ascii=False, indent=2)
+PYCFG
+envrun "${APP_VER}" bash "${PK}/cmd/main" stop >/dev/null 2>&1
+sleep 2
+# 必须先降级运行时、再启动：启动时 refreshVersion() 按已安装运行时把 config.Version 写成 alpha.2，
+# 否则 upgrade() 的 verBefore 仍是 rc.1 → CompareSemver 判「已是最新」直接跳过（实测踩中）。
+npm install --prefix "${VAR}/dsh-runtime" --no-audit --no-fund \
+  @deepseek-ai/dsh@0.2.2-alpha.2 >/tmp/smoke-downgrade.log 2>&1
+DOWN_VER="$(node -p "require('${VAR}/dsh-runtime/node_modules/@deepseek-ai/dsh/package.json').version" 2>/dev/null)"
+[ "${DOWN_VER}" = "0.2.2-alpha.2" ] && ok "已把运行时降级到 alpha.2（${DOWN_VER}）" || bad "降级到 alpha.2 失败（${DOWN_VER:-空}）"
+envrun "${APP_VER}" bash "${PK}/cmd/main" start >/dev/null 2>&1
+wait_http "http://127.0.0.1:${PORT_PROXY}/" 120 >/dev/null 2>&1 || bad "重启用例启动失败"
+# 运行态版本以 dsh-runtime 内 package.json 为准（config.json 的 version 字段是展示/持久副本，
+# 手动降级+重启后不保证即时同步，这里只作信息项记录，不作失败判据）
+CFG_VER="$(python3 -c "import json;print(json.load(open('${VAR}/config.json')).get('version',''))" 2>/dev/null)"
+echo "  信息：config.json version=${CFG_VER:-空}（运行态 ${DOWN_VER}）"
+
+UP2_CODE="$(api_post '{"action":"upgrade"}' /tmp/up2.json)"
+[ "${UP2_CODE}" = "200" ] && ok "在线升级已受理（HTTP ${UP2_CODE}）" || bad "在线升级受理失败（HTTP ${UP2_CODE}：$(head -c 200 /tmp/up2.json 2>/dev/null)）"
+if grep -q '跳过更新' "${VAR}/harness.log" 2>/dev/null; then
+  bad "在线升级被判定为「已是最新」而跳过（alpha.2 应升级到 rc.1）"
+else
+  ok "在线升级未被跳过（日志无「跳过更新」，通道 next 正确解析到 rc.1）"
+fi
+
+UP_VER=""
+for _ in $(seq 1 60); do
+  UP_VER="$(node -p "require('${VAR}/dsh-runtime/node_modules/@deepseek-ai/dsh/package.json').version" 2>/dev/null)"
+  [ "${UP_VER}" = "0.2.2-rc.1" ] && break
+  sleep 5
+done
+[ "${UP_VER}" = "0.2.2-rc.1" ] && ok "在线升级完成：alpha.2 → ${UP_VER}（通道 next 解析正确）" || bad "在线升级未到 rc.1（当前 ${UP_VER:-空}）"
+wait_http "http://127.0.0.1:${PORT_PROXY}/" 180 && ok "在线升级后反代 ${PORT_PROXY} 可访问" || bad "在线升级后反代不可访问"
+CFG_VER_AFTER="$(python3 -c "import json;print(json.load(open('${VAR}/config.json')).get('version',''))" 2>/dev/null)"
+[ "${CFG_VER_AFTER}" = "0.2.2-rc.1" ] && ok "config.json 版本已记录为 ${CFG_VER_AFTER}" || bad "config.json 版本为 ${CFG_VER_AFTER:-空}（期望 0.2.2-rc.1）"
 
 step "4 停与卸"
 envrun "${APP_VER}" bash "${PK}/cmd/main" stop >/dev/null 2>&1

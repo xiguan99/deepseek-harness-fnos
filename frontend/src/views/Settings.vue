@@ -227,7 +227,7 @@
                           <Help />
                         </n-icon>
                       </template>
-                      最新版取 NPM 全量已发布版本的最高版本；稳定版取 NPM latest 标签版本
+                      预览版取 NPM next 标签（官方 rc 预览线，默认）；稳定版取 NPM latest 标签；内测版取 alpha 标签；最新版取全量已发布版本的最高版本
                     </n-tooltip>
                   </div>
                 </template>
@@ -435,8 +435,10 @@ const handleRuntimeUpgradeToggle = (next: boolean) => {
 
 // 版本更新通道选项
 const updateChannelOptions = [
-  { label: '最新版', value: 'latest' },
-  { label: '稳定版', value: 'stable' }
+  { label: '预览版（next）', value: 'next' },
+  { label: '稳定版（stable）', value: 'stable' },
+  { label: '内测版（alpha）', value: 'alpha' },
+  { label: '最新版（全量最高版本）', value: 'latest' }
 ]
 
 watch(isChanged, (changed) => {

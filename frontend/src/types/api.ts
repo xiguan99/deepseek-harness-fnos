@@ -156,7 +156,7 @@ export interface SettingsConfig {
   network_proxy: string
   proxy_dsh_runtime?: boolean
   npm_registry?: string
-  update_channel?: 'latest' | 'stable'
+  update_channel?: 'next' | 'stable' | 'alpha' | 'latest'
   access_mode?: 'fngateway' | 'port' | 'custom'
   reverse_proxy_url: string
   access_password: string

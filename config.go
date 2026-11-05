@@ -73,11 +73,25 @@ func (c Config) GetNpmRegistry() string {
 	return DefaultNpmRegistry
 }
 
+// UpdateChannelNext 是默认更新通道：跟随官方 NPM 的 next（预览）标签。
+// 官方 dist-tags.latest 长期落后于 next/alpha，若默认取 latest 会永远检查不到预览版更新。
+const UpdateChannelNext = "next"
+
+// GetUpdateChannel 归一化更新通道，只返回 next / stable / alpha / latest 四值。
+// 空值与历史配置里的 "latest" 都按「全量最高版本」处理（等价 next 线），不会降级。
 func (c Config) GetUpdateChannel() string {
-	if strings.EqualFold(strings.TrimSpace(c.UpdateChannel), "stable") {
+	switch strings.ToLower(strings.TrimSpace(c.UpdateChannel)) {
+	case "stable":
 		return "stable"
+	case "next":
+		return "next"
+	case "alpha":
+		return "alpha"
+	case "latest":
+		return "latest"
+	default:
+		return UpdateChannelNext
 	}
-	return "latest"
 }
 
 var (
@@ -100,15 +114,15 @@ func InitConfig() {
 		ProxyDshRuntime:    &defaultProxyDsh,
 		AllowRuntimeUpgrade: &defaultRuntimeUpgrade,
 		NpmRegistry:        DefaultNpmRegistry,
-		UpdateChannel:      "latest",
+		UpdateChannel:      UpdateChannelNext,
 	}
 	data, err := os.ReadFile(configFilePath)
 	if err != nil {
 		return
 	}
 	_ = json.Unmarshal(data, &globalConfig)
-	if globalConfig.UpdateChannel == "" {
-		globalConfig.UpdateChannel = "latest"
+	if strings.TrimSpace(globalConfig.UpdateChannel) == "" {
+		globalConfig.UpdateChannel = UpdateChannelNext
 	}
 	if globalConfig.EnableBuiltinSkill == nil {
 		globalConfig.EnableBuiltinSkill = &defaultSkillEnabled

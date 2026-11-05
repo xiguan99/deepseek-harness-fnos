@@ -146,17 +146,25 @@ func fetchRemoteNpmInfo(pkgName string) (*npmPackageInfo, error) {
 
 // resolveTargetVersion 依据更新渠道解析目标版本：
 // - stable: 取 NPM 的 dist-tags.latest
-// - latest: 取 NPM 所有版本中的最高版本
+// - next:   取 NPM 的 dist-tags.next（官方预览线；缺失时回落最高版本）
+// - alpha:  取 NPM 的 dist-tags.alpha（内测线；缺失时回落最高版本）
+// - latest: 取 NPM 所有版本中的最高版本（历史口径，等价预览线）
 func resolveTargetVersion(info *npmPackageInfo, channel string) string {
 	if info == nil {
 		return ""
 	}
 
-	if channel == "stable" {
-		if latest, ok := info.DistTags["latest"]; ok && latest != "" {
-			return strings.TrimPrefix(strings.TrimSpace(latest), "v")
+	switch channel {
+	case "stable":
+		return distTagVersion(info, "latest")
+	case "next":
+		if v := distTagVersion(info, "next"); v != "" {
+			return v
 		}
-		return ""
+	case "alpha":
+		if v := distTagVersion(info, "alpha"); v != "" {
+			return v
+		}
 	}
 
 	var maxVer string
@@ -170,6 +178,17 @@ func resolveTargetVersion(info *npmPackageInfo, channel string) string {
 		}
 	}
 	return maxVer
+}
+
+// distTagVersion 读取指定 dist-tag 的版本号，缺失时返回空串。
+func distTagVersion(info *npmPackageInfo, tag string) string {
+	if info == nil || info.DistTags == nil {
+		return ""
+	}
+	if v, ok := info.DistTags[tag]; ok && strings.TrimSpace(v) != "" {
+		return strings.TrimPrefix(strings.TrimSpace(v), "v")
+	}
+	return ""
 }
 
 func formatVersionTag(ver string) string {
