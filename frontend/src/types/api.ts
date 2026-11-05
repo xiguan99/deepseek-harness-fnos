@@ -62,6 +62,27 @@ export interface CheckUpdateResult {
 }
 
 /**
+ * 单条更新通道当前解析到的版本（面板本地计算，与本体 upgrade.go 同口径）
+ */
+export interface ChannelVersion {
+  value: 'next' | 'stable' | 'alpha' | 'latest'
+  label: string
+  version: string
+  source: string
+}
+
+/**
+ * 四条更新通道的版本解析结果
+ */
+export interface ChannelVersions {
+  registry: string
+  current: string
+  channels: ChannelVersion[]
+  tags: Record<string, string>
+  fetched_at: string
+}
+
+/**
  * 工作区项模型
  */
 export interface WorkspaceItem {

@@ -227,11 +227,36 @@
                           <Help />
                         </n-icon>
                       </template>
-                      预览版取 NPM next 标签（官方 rc 预览线，默认）；稳定版取 NPM latest 标签；内测版取 alpha 标签；最新版取全量已发布版本的最高版本
+                      预览版（next）走官方 rc 预览线，取 NPM next 标签（默认）；稳定版（stable）取 latest 标签；内测版（alpha）走 alpha 内测线，取 alpha 标签；最新版取全量已发布版本的最高版本。rc 与 alpha 是两条线，选内测版不会拿到 rc 版本。
                     </n-tooltip>
                   </div>
                 </template>
+                <div class="w-full">
                 <n-select v-model:value="config.update_channel" :options="updateChannelOptions" />
+                <div class="mt-2 w-full text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                  <div v-if="channelVersionsLoading">正在查询各通道当前版本…</div>
+                  <div v-else-if="channelVersionsError">
+                    通道版本查询失败：{{ channelVersionsError }}（不影响通道选择与升级）
+                  </div>
+                  <template v-else-if="channelVersions">
+                    <div>
+                      当前通道解析 →
+                      <span class="font-medium text-slate-700 dark:text-slate-200">
+                        {{ resolvedChannelVersion || '未知' }}
+                      </span>
+                      <span v-if="channelVersions.current">（本机运行时 {{ channelVersions.current }}）</span>
+                    </div>
+                    <div class="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
+                      <div v-for="ch in channelVersions.channels" :key="ch.value">
+                        {{ ch.label }} → {{ ch.version || '—' }}
+                      </div>
+                    </div>
+                    <div class="mt-1">
+                      注意：rc 与 alpha 是两条线——预览版（next）取 rc 预览线，内测版（alpha）取 alpha 内测线，选内测版不会拿到 rc 版本。
+                    </div>
+                  </template>
+                </div>
+                </div>
               </n-form-item>
 
               <n-form-item path="npm_registry">
@@ -372,6 +397,8 @@ import {
   X,
   ExternalLink
 } from '@vicons/tabler'
+import { systemApi } from '../api'
+import type { ChannelVersions } from '../types/api'
 import { useConfigStore } from '../stores/config'
 import { useSystemStore } from '../stores/system'
 import { trimSdk } from '../utils/trimSdk'
@@ -396,6 +423,42 @@ const {
   isHeapMemoryChanged,
   isProxyDshChanged
 } = storeToRefs(configStore)
+
+// 更新通道当前解析到的版本（由面板后端按本体同一口径计算）
+const channelVersions = ref<ChannelVersions | null>(null)
+const channelVersionsLoading = ref(false)
+const channelVersionsError = ref('')
+
+const channelVersionMap = computed<Record<string, string>>(() => {
+  const map: Record<string, string> = {}
+  for (const item of channelVersions.value?.channels || []) {
+    map[item.value] = item.version
+  }
+  return map
+})
+
+// 当前选中通道会解析到的版本
+const resolvedChannelVersion = computed(() => {
+  const channel = config.value.update_channel || 'next'
+  return channelVersionMap.value[channel] || ''
+})
+
+async function loadChannelVersions() {
+  channelVersionsLoading.value = true
+  channelVersionsError.value = ''
+  try {
+    const res = await systemApi.channelVersions()
+    if (res.success && res.data) {
+      channelVersions.value = res.data
+    } else {
+      channelVersionsError.value = res.message || '查询失败'
+    }
+  } catch (e) {
+    channelVersionsError.value = e instanceof Error ? e.message : '查询失败'
+  } finally {
+    channelVersionsLoading.value = false
+  }
+}
 
 // 堆内存上限选项
 const heapMemoryOptions = [
@@ -520,6 +583,7 @@ const rules: FormRules = {
 }
 
 onMounted(async () => {
+  loadChannelVersions()
   if (!configLoaded.value) {
     await configStore.fetchConfig()
     if (loadError.value) {

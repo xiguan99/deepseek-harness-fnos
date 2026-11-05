@@ -26,9 +26,11 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import urllib.error
+import urllib.request
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
-VERSION = "1.0.0"
+VERSION = "1.0.4"
 
 HOP_BY_HOP = {
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
@@ -200,6 +202,115 @@ class TokenCache:
             return self.value
 
 
+# ── 更新通道版本解析 ───────────────────────────────────────
+#
+# 与本体 upgrade.go:resolveTargetVersion 同一口径：
+#   stable → dist-tags.latest；next → dist-tags.next（缺失回落最高版本）；
+#   alpha  → dist-tags.alpha（缺失回落）；latest → 全量已发布版本里的最高版本。
+# 面板自己算一份，是为了让用户在选择通道时就能看到「这条通道现在解析到哪个版本」。
+
+NPM_PACKAGE = "@deepseek-ai/dsh"
+CHANNEL_LABELS = {
+    "next": "预览版（next）",
+    "stable": "稳定版（stable）",
+    "alpha": "内测版（alpha）",
+    "latest": "最新版（全量最高）",
+}
+_CHANNEL_CACHE = {"key": "", "at": 0.0, "data": None}
+_CHANNEL_LOCK = threading.Lock()
+
+
+def _parse_semver(ver: str):
+    ver = (ver or "").strip()
+    if ver.startswith("v"):
+        ver = ver[1:]
+    ver = ver.split("+", 1)[0]
+    core, _, pre = ver.partition("-")
+    nums = []
+    for part in core.split("."):
+        try:
+            nums.append(int(part))
+        except ValueError:
+            nums.append(0)
+    while len(nums) < 3:
+        nums.append(0)
+    return nums[:3], [p for p in pre.split(".") if p != ""]
+
+
+def _cmp_semver(a: str, b: str) -> int:
+    """semver 排序：返回 -1/0/1（预发布标识按 semver 规范比较）。"""
+    (na, pa), (nb, pb) = _parse_semver(a), _parse_semver(b)
+    if na != nb:
+        return -1 if na < nb else 1
+    if not pa and not pb:
+        return 0
+    if not pa:
+        return 1
+    if not pb:
+        return -1
+    for x, y in zip(pa, pb):
+        xn, yn = x.isdigit(), y.isdigit()
+        if xn and yn:
+            xi, yi = int(x), int(y)
+            if xi != yi:
+                return -1 if xi < yi else 1
+        elif xn != yn:
+            return -1 if xn else 1
+        elif x != y:
+            return -1 if x < y else 1
+    if len(pa) != len(pb):
+        return -1 if len(pa) < len(pb) else 1
+    return 0
+
+
+def _http_get_json(url: str, proxy: str = "", timeout: float = 10.0):
+    handlers = []
+    if proxy:
+        handlers.append(urllib.request.ProxyHandler({"http": proxy, "https": proxy}))
+    opener = urllib.request.build_opener(*handlers)
+    req = urllib.request.Request(url, headers={
+        "Accept": "application/json",
+        "User-Agent": f"harness-panel/{VERSION}",
+    })
+    with opener.open(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _resolve_channels(info: dict):
+    tags = info.get("dist-tags") or {}
+    times = info.get("time") or {}
+    max_ver = ""
+    for ver in times:
+        if ver in ("modified", "created"):
+            continue
+        clean = str(ver).strip().lstrip("v")
+        if not clean:
+            continue
+        if not max_ver or _cmp_semver(clean, max_ver) > 0:
+            max_ver = clean
+
+    def tag(name: str) -> str:
+        val = tags.get(name) or ""
+        return str(val).strip().lstrip("v")
+
+    resolved = {
+        "stable": (tag("latest"), "dist-tags.latest"),
+        "next": (tag("next") or max_ver, "dist-tags.next" if tag("next") else "最高版本"),
+        "alpha": (tag("alpha") or max_ver, "dist-tags.alpha" if tag("alpha") else "最高版本"),
+        "latest": (max_ver, "全量最高版本"),
+    }
+    channels = []
+    for value in ("next", "stable", "alpha", "latest"):
+        version, source = resolved[value]
+        channels.append({
+            "value": value,
+            "label": CHANNEL_LABELS[value],
+            "version": version,
+            "source": source,
+        })
+    return channels, {"next": tag("next"), "latest": tag("latest"), "alpha": tag("alpha")}
+
+
 # ── 静态文件 ───────────────────────────────────────────────
 
 
@@ -363,6 +474,10 @@ class ShellHandler(BaseHTTPRequestHandler):
             }, ensure_ascii=False).encode(), "application/json; charset=utf-8")
             return
 
+        if path == "/api/panel/channel-versions":
+            self.serve_channel_versions()
+            return
+
         if path == "/api" or path.startswith("/api/"):
             self.proxy_api(path, parts.query)
             return
@@ -425,6 +540,79 @@ class ShellHandler(BaseHTTPRequestHandler):
         except ValueError:
             length = 0
         return self.rfile.read(length) if length > 0 else b""
+
+    def _send_json(self, data: dict):
+        body = json.dumps({"code": 0, "data": data}, ensure_ascii=False).encode("utf-8")
+        self._send(200, body, "application/json; charset=utf-8")
+
+    def _json_error(self, message: str):
+        body = json.dumps({"code": 1, "message": message}, ensure_ascii=False).encode("utf-8")
+        self._send(200, body, "application/json; charset=utf-8")
+
+    def fetch_backend_config(self, token: str) -> dict:
+        """读本体 /api/config（npm_registry / network_proxy / version）。"""
+        conn = http.client.HTTPConnection(self.server.target_host,
+                                          self.server.target_port, timeout=10)
+        try:
+            conn.request("GET", self.backend_path("/api/config"), headers={
+                "Host": f"{self.server.target_host}:{self.server.target_port}",
+                "X-DSH-Control-Token": token,
+            })
+            payload = json.loads(conn.getresponse().read().decode("utf-8"))
+        except Exception as exc:
+            log(f"读取本体配置失败：{exc}")
+            return {}
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        if isinstance(payload, dict) and payload.get("code") == 0:
+            data = payload.get("data")
+            return data if isinstance(data, dict) else {}
+        return {}
+
+    def serve_channel_versions(self):
+        """返回四条更新通道当前解析到的版本（供面板在通道下拉旁显示）。"""
+        token = self.server.tokens.get()
+        if not token:
+            self._json_error("读不到控制令牌，本体可能未启动")
+            return
+
+        cfg = self.fetch_backend_config(token)
+        registry = str(cfg.get("npm_registry") or "").strip() or "https://registry.npmmirror.com"
+        proxy = ""
+        if cfg.get("proxy_dsh_runtime") and cfg.get("network_proxy"):
+            proxy = str(cfg.get("network_proxy")).strip()
+
+        cache_key = f"{registry}|{proxy}"
+        now = time.time()
+        with _CHANNEL_LOCK:
+            cached = _CHANNEL_CACHE
+            if cached["data"] and cached["key"] == cache_key and now - cached["at"] < 120:
+                self._send_json(cached["data"])
+                return
+
+        try:
+            info = _http_get_json(registry.rstrip("/") + "/" + NPM_PACKAGE, proxy=proxy)
+        except Exception as exc:
+            self._json_error(f"查询 {registry} 失败：{exc}")
+            return
+        if not isinstance(info, dict):
+            self._json_error(f"{registry} 返回的不是 NPM 元数据")
+            return
+
+        channels, tags = _resolve_channels(info)
+        data = {
+            "registry": registry,
+            "current": str(cfg.get("version") or ""),
+            "channels": channels,
+            "tags": tags,
+            "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        }
+        with _CHANNEL_LOCK:
+            _CHANNEL_CACHE.update({"key": cache_key, "at": now, "data": data})
+        self._send_json(data)
 
     def proxy_api(self, path: str, query: str):
         token = self.server.tokens.get()
