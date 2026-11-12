@@ -65,7 +65,8 @@
 
 | 本包版本 | 对应官方运行时 | 说明 |
 | --- | --- | --- |
-| `0.2.2-rc.1` | `0.2.2-rc.1` | 跟进官方 rc.1 预览版；更新通道改为 next/stable/alpha/latest 四档、默认 `next`（跟随官方预览线，不再被滞后的 `latest` 标签卡住）（当前） |
+| `0.2.2-rc.2` | `0.2.2-rc.2` | 跟进官方 rc.2 预览版；官方本版移除了 `dsh-experimental-agent-team-profile`，新增 `dsh-cua-bundle` 依赖，全部 `@deepseek-ai/*` 依赖整批跳到 rc.2（当前） |
+| `0.2.2-rc.1` | `0.2.2-rc.1` | 跟进官方 rc.1 预览版；更新通道改为 next/stable/alpha/latest 四档、默认 `next`（跟随官方预览线，不再被滞后的 `latest` 标签卡住） |
 | `0.2.2-alpha.2.4` | `0.2.2-alpha.2` | 修复反代吞掉 `/plugins/??` 折叠多路复用请求导致的 `client-modules: HTML did not preload` |
 | `0.2.2-alpha.2.3` | `0.2.2-alpha.2` | 运行时随包对齐插件版本、清理失效本地 link；该包仍有 preload 报错 |
 | `0.2.2-alpha.2.2` | `0.2.2-alpha.2` | 更新检查只保留本仓（去掉误用的 fork），前端产物重构建 |
@@ -78,7 +79,7 @@
 
 ## 安装
 
-1. 应用中心 → 手动安装 → 选 `deepseek.harness_v0.2.2-rc.1_x86.fpk`（本体）
+1. 应用中心 → 手动安装 → 选 `deepseek.harness_v0.2.2-rc.2_x86.fpk`（本体）
 2. 同样方式安装 `harness-panel_v1.0.3_x86.fpk`（面板）
 3. 首次启动要解出运行时并初始化 pnpm 环境，1～3 分钟，期间打不开属正常
 4. 桌面图标：本体打开 DSH Web UI，面板打开管理面板
@@ -166,7 +167,7 @@ bash scripts/build-pkg.sh
 
 ## 版本
 
-- 本体：`0.2.2-rc.1`（与官方运行时 `0.2.2-rc.1` 一致；预览版）
+- 本体：`0.2.2-rc.2`（与官方运行时 `0.2.2-rc.2` 一致；预览版）
 - 面板：`1.0.3`（独立版本线，不对应官方；版本卡片区分包版本/内置运行时/官方上游）
 
 ---

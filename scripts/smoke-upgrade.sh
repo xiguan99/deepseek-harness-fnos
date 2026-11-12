@@ -191,7 +191,7 @@ TOKEN_LINES2="$(grep -c 'token=' "${VAR}/harness.log" 2>/dev/null || true)"; TOK
 UP_CODE="$(api_post '{"action":"upgrade"}' /tmp/up.json)"
 grep -q '在线升级运行时已关闭' /tmp/up.json 2>/dev/null && ok "未开启允许时在线升级被拦截（${UP_CODE}，提示文案在）" || bad "在线升级拦截异常（${UP_CODE}）"
 
-# ── 在线升级链路：alpha.2 → rc.1（通道 next 必须解析到 rc 预览线）──
+# ── 在线升级链路：alpha.2 → 当前 rc（通道 next 必须解析到 rc 预览线）──
 echo "  准备在线升级：通道 next、允许升级、把运行时降级到 alpha.2"
 python3 - "${VAR}/config.json" <<'PYCFG'
 import json, sys
@@ -221,21 +221,21 @@ echo "  信息：config.json version=${CFG_VER:-空}（运行态 ${DOWN_VER}）"
 UP2_CODE="$(api_post '{"action":"upgrade"}' /tmp/up2.json)"
 [ "${UP2_CODE}" = "200" ] && ok "在线升级已受理（HTTP ${UP2_CODE}）" || bad "在线升级受理失败（HTTP ${UP2_CODE}：$(head -c 200 /tmp/up2.json 2>/dev/null)）"
 if grep -q '跳过更新' "${VAR}/harness.log" 2>/dev/null; then
-  bad "在线升级被判定为「已是最新」而跳过（alpha.2 应升级到 rc.1）"
+  bad "在线升级被判定为「已是最新」而跳过（alpha.2 应升级到 ${RT_VER}）"
 else
-  ok "在线升级未被跳过（日志无「跳过更新」，通道 next 正确解析到 rc.1）"
+  ok "在线升级未被跳过（日志无「跳过更新」，通道 next 正确解析到 ${RT_VER}）"
 fi
 
 UP_VER=""
 for _ in $(seq 1 60); do
   UP_VER="$(node -p "require('${VAR}/dsh-runtime/node_modules/@deepseek-ai/dsh/package.json').version" 2>/dev/null)"
-  [ "${UP_VER}" = "0.2.2-rc.1" ] && break
+  [ "${UP_VER}" = "${RT_VER}" ] && break
   sleep 5
 done
-[ "${UP_VER}" = "0.2.2-rc.1" ] && ok "在线升级完成：alpha.2 → ${UP_VER}（通道 next 解析正确）" || bad "在线升级未到 rc.1（当前 ${UP_VER:-空}）"
+[ "${UP_VER}" = "${RT_VER}" ] && ok "在线升级完成：alpha.2 → ${UP_VER}（通道 next 解析正确）" || bad "在线升级未到 ${RT_VER}（当前 ${UP_VER:-空}）"
 wait_http "http://127.0.0.1:${PORT_PROXY}/" 180 && ok "在线升级后反代 ${PORT_PROXY} 可访问" || bad "在线升级后反代不可访问"
 CFG_VER_AFTER="$(python3 -c "import json;print(json.load(open('${VAR}/config.json')).get('version',''))" 2>/dev/null)"
-[ "${CFG_VER_AFTER}" = "0.2.2-rc.1" ] && ok "config.json 版本已记录为 ${CFG_VER_AFTER}" || bad "config.json 版本为 ${CFG_VER_AFTER:-空}（期望 0.2.2-rc.1）"
+[ "${CFG_VER_AFTER}" = "${RT_VER}" ] && ok "config.json 版本已记录为 ${CFG_VER_AFTER}" || bad "config.json 版本为 ${CFG_VER_AFTER:-空}（期望 ${RT_VER}）"
 
 step "4 停与卸"
 envrun "${APP_VER}" bash "${PK}/cmd/main" stop >/dev/null 2>&1
