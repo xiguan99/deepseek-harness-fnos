@@ -17,6 +17,14 @@ DSH_RUN_USER="${wizard_dsh_run_user:-root}"
 export DATA_LIBRARY_PATH="${DATA_LIBRARY_PATH}"
 export DSH_RUN_USER="${DSH_RUN_USER}"
 
+# 502 兜底：Node 自动选族(autoSelectFamily)默认 250ms 等待，会误杀慢 SYN 造成
+# 上游 502/upstream-timeout。这里给整个进程树（含 billion-context 边车）注入
+# 2s 等待，属启动层配置，插件升级重装不会覆盖。详见 502 根因记录。
+if [ -z "${NODE_OPTIONS##*network-family-autoselection-attempt-timeout*}" ]; then :; else
+    NODE_OPTIONS="${NODE_OPTIONS:-} --network-family-autoselection-attempt-timeout=2000"
+    export NODE_OPTIONS
+fi
+
 APP_NAME="deepseek.harness"
 CMD="${TRIM_APPDEST}/bin/${APP_NAME}"
 

@@ -65,7 +65,8 @@
 
 | 本包版本 | 对应官方运行时 | 说明 |
 | --- | --- | --- |
-| `0.2.2-rc.2` | `0.2.2-rc.2` | 跟进官方 rc.2 预览版；官方本版移除了 `dsh-experimental-agent-team-profile`，新增 `dsh-cua-bundle` 依赖，全部 `@deepseek-ai/*` 依赖整批跳到 rc.2（当前） |
+| `0.2.2-rc.3` | `0.2.2-rc.3` | 跟进官方 rc.3 预览版：新增实验性「DeepSeek 会话导入」插件，修复 Windows 桌面版应用内更新（当前） |
+| `0.2.2-rc.2` | `0.2.2-rc.2` | 跟进官方 rc.2 预览版；官方本版移除了 `dsh-experimental-agent-team-profile`，新增 `dsh-cua-bundle` 依赖，全部 `@deepseek-ai/*` 依赖整批跳到 rc.2 |
 | `0.2.2-rc.1` | `0.2.2-rc.1` | 跟进官方 rc.1 预览版；更新通道改为 next/stable/alpha/latest 四档、默认 `next`（跟随官方预览线，不再被滞后的 `latest` 标签卡住） |
 | `0.2.2-alpha.2.4` | `0.2.2-alpha.2` | 修复反代吞掉 `/plugins/??` 折叠多路复用请求导致的 `client-modules: HTML did not preload` |
 | `0.2.2-alpha.2.3` | `0.2.2-alpha.2` | 运行时随包对齐插件版本、清理失效本地 link；该包仍有 preload 报错 |
@@ -167,7 +168,7 @@ bash scripts/build-pkg.sh
 
 ## 版本
 
-- 本体：`0.2.2-rc.2`（与官方运行时 `0.2.2-rc.2` 一致；预览版）
+- 本体：`0.2.2-rc.3`（与官方运行时 `0.2.2-rc.3` 一致；预览版）
 - 面板：`1.0.3`（独立版本线，不对应官方；版本卡片区分包版本/内置运行时/官方上游）
 
 ---
