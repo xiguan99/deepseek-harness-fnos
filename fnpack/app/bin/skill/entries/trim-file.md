@@ -1,39 +1,29 @@
 ---
 name: trim-file
-description: 当任务涉及列目录、搜索文件、上传文件、共享目录、ACL、当前用户目录推导或文件路径判断时使用
+description: 列出或搜索文件、上传本地文件、检查共享目录和 ACL，或判断当前用户目录与 NAS 路径语义时使用。
 ---
 
-# trim-file
+# 文件
 
-## 什么时候看这个 skill
+先读 `../reference/workflows/file-routing.md` 选择命令，再读 `../reference/file.md` 查看端点字段。
 
-- 用户说“看文件”“列目录”“搜文件”
-- 用户要上传本地文件到 NAS 目录
-- 用户提到共享目录、ACL、别人共享给我的文件
-- 你需要区分 `/`、当前用户目录和具体 `/vol{n}/...`
+## 规则
 
-## 先看哪里
+- `file ls` 和 `file ls /` 都省略请求的 `path`。
+- 写操作默认要求具体 `/vol{n}/...` 路径。
+- `file share.*` 管理共享目录，不是共享链接。
+- `file search-others` 搜索别人共享给当前用户的文件，不是列出共享目录。
+- `file upload` 接收远端目录，由 CLI 拼接本地文件名。
+- `file check-upload` 可能分配临时占位；上传及其预检都需要 `--yes`。
+- `file fav add/del` 修改当前用户收藏夹，需要 `--yes`。
 
-- 文件路由 workflow：`../reference/workflows/file-routing.md`
-- 文件模块 reference：`../reference/file.md`
-
-## 核心提醒
-
-- `file ls` 和 `file ls /` 都会省略 `path`
-- 写操作默认必须使用具体 `/vol{n}/...` 路径
-- `file share.*` 是共享目录，不是 share link
-- `file search-others` 是“别人共享给我”的文件搜索，不是共享目录列表
-- `file upload` 的远端参数是目录，CLI 会使用本地文件名拼出目标路径
-- `file check-upload` 可能分配临时上传占位；上传和预检都必须显式传 `--yes`
-- `file fav add/del` 会修改当前用户收藏夹，必须显式传 `--yes`
-
-## 常用命令
+## 命令
 
 ```bash
-./scripts/trim-cli file ls
-./scripts/trim-cli file ls /vol1/downloads
-./scripts/trim-cli file search <key>
-./scripts/trim-cli file upload /vol1/1000/uploads ./local-file.txt --overwrite rename --yes
-./scripts/trim-cli file share list
-./scripts/trim-cli file acl get /vol1/1000/docs
+fnos-cli file ls
+fnos-cli file ls /vol1/downloads
+fnos-cli file search <key>
+fnos-cli file upload /vol1/1000/uploads ./local-file.txt --overwrite rename --yes
+fnos-cli file share list
+fnos-cli file acl get /vol1/1000/docs
 ```

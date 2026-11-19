@@ -1,84 +1,67 @@
-# 相册任务路由 workflow
+# 照片任务路由
 
-这个 workflow 用于处理相册统计、条件搜索、AI 语义搜索和抽样预览。确定命令方向后，
-再进入 Photos reference 查看字段。
+用于图库统计、条件搜索、AI 语义搜索和抽样预览。选定命令后读取照片参考文档。
 
-## 1. 认证检查
+## 1. 授权
 
-Photos 复用当前 profile 的代理 session。没有有效 session 时运行一次交互式
-`trim-cli login`：用户自行打开链接、登录并授权，再把一次性 code 粘贴回 CLI 提示。不要自动
-填写账号密码、点击授权或读取页面 code。
-操作多台 NAS 时应显式使用对应的 `--profile`、`--host` 和 `--port`，不要跨设备复用
-session。
+Photos 复用当前 profile 的代理登录状态。没有有效状态时，按 `../oauth.md` 执行：Agent 生成授权链接，用户在浏览器授权并回传 code，再由 Agent 完成交换。用户无需终端；凭据和同意操作留在浏览器。
 
-## 2. 典型场景
+多设备场景显式选择 `--profile`、`--host` 和 `--port`。不同设备状态不能互换。
 
-### 场景 A：查看相册扫描范围和总体规模
+## 2. 场景
+
+### 图库范围与大小
 
 ```bash
-trim-cli photos folders
+fnos-cli photos folders
 ```
 
-优先汇总各目录返回的照片数和视频数。这里统计的是已加入 Photos 扫描的目录，
-不要把文件系统中的全部图片数量等同于相册索引数量。
+按扫描目录汇总返回的照片/视频数量。Photos 仅索引已加入扫描的目录；文件系统图片数量不等于图库索引数量。
 
-### 场景 B：条件搜索照片并报告数量
+### 条件搜索与计数
 
 ```bash
-trim-cli photos search 北京 --limit 20
-trim-cli photos search IMG --filter file_type=photo --limit 20
+fnos-cli photos search 北京 --limit 20
+fnos-cli photos search IMG --filter file_type=photo --limit 20
 ```
 
-使用响应中的 `total` 报告匹配总数，`list` 只是当前返回的样本。用户还要预览时，
-从 `list` 选择少量代表项，再执行 `photos preview <id> --size m`，不要为了预览一次性
-请求全部原图。
+响应 `total` 表示全部匹配数，`list` 是本次返回样本。预览时选少量有代表性的结果执行 `photos preview <id> --size m`，不要获取所有原图。
 
-### 场景 C：用 AI 语义搜索自然语言描述
+### 自然语言 AI 搜索
 
-先检查 AI 搜索是否可用，再发起搜索：
+先检查模型就绪状态：
 
 ```bash
-trim-cli photos request post /api/v1/magic-search/ready --yes
-trim-cli photos request post /api/v1/magic-search/do \
+fnos-cli photos request post /api/v1/magic-search/ready --yes
+fnos-cli photos request post /api/v1/magic-search/do \
   --json '{"keyword":"海边日落","antiFilters":[]}' --yes
 ```
 
-AI 搜索与 `photos search` 的条件搜索不是同一个端点。AI 响应通常只提供
-`response.data.list`，没有稳定的 `total` 字段，因此只能报告“本次返回 N 条”。模型未
-安装、未就绪或语言不匹配时，应原样说明业务错误，不要静默回退到文件名搜索后仍声称
-是 AI 结果。
+AI 搜索与条件 `photos search` 是不同端点。通常返回 `response.data.list`，没有稳定 `total`，因此只报告本次返回条数。模型缺失、未就绪或不支持查询语言时报告业务错误；文件名搜索的回落结果不能称为 AI 结果。
 
-`photos request` 会保留原始业务信封，即使 `response.code != 0` 也可能以退出码 0 结束。
-两次请求都必须检查 `httpStatus` 位于 `200..299` 且 `response.code == 0`。要给出预览时，
-从 `response.data.list` 选择结果 `id`，再执行 `photos preview <id> --size m`。
+`photos request` 保留原始信封，即使 `response.code != 0` 也可能退出 0。两次调用都必须满足 `httpStatus` 为 `200..299` 且 `response.code == 0`。从 `response.data.list` 选 ID 再取预览。
 
-### 场景 D：获取抽样预览
+### 抽样预览
 
 ```bash
-trim-cli photos preview <id> --size m
-trim-cli photos preview <id> --size o
+fnos-cli photos preview <id> --size m
+fnos-cli photos preview <id> --size o
 ```
 
-默认优先返回中等尺寸预览。只有用户明确需要原图时才使用 `--size o`。
+优先中等预览；用户要求原图时才使用 `--size o`。
 
-## 3. 链接与数量语义
+## 3. 计数与链接
 
-| 字段或结果 | 语义 | 注意事项 |
+| 结果 | 含义 | 注意事项 |
 | --- | --- | --- |
-| 条件搜索 `total` | 全部匹配数量 | 不等于当前 `list` 长度 |
-| AI 搜索 `list` 长度 | 本次返回条数 | 没有 `total` 时不能称为精确总数 |
-| Photos `previewUrl` | 缩略图、原图或视频预览 | 浏览器通常需要已登录 fnOS |
+| 条件搜索 `total` | 全部匹配数 | 不是当前 `list` 长度 |
+| AI `list` 长度 | 本次返回条数 | 缺少 `total` 时不是精确总数 |
+| `previewUrl` | 缩略图、原图或视频预览 | 浏览器通常仍需已登录 fnOS 的 cookie |
 
-不要读取或输出安全存储中的 token，也不要绕过 CLI 对敏感 URI 的脱敏。
+安全存储 token 保持私密，保留 CLI 对敏感 URI 的脱敏处理。
 
-## 4. 什么时候必须停下来确认
+## 4. 停止并澄清
 
-- 用户要求精确总数，但接口只返回无 `total` 的 AI 结果列表。
-- 用户要求可公开访问的预览链接，但浏览器没有 fnOS 登录态。
-- 用户只要求预览，却准备一次性请求全部原图。
-- AI 通用请求的 `httpStatus` 非 2xx 或 `response.code` 非 0。
+AI 结果缺少 `total` 却要求精确总数、未登录浏览器却要求公开预览，或仅预览却会获取全部原图时，先澄清。`httpStatus` 非 2xx 或 `response.code` 非零时停止。
 
-## 5. 下一步
-
-- Photos 字段、过滤和 AI 端点：看 [../photos.md](../photos.md)
-- 需要验证真实设备差异：看 [device-validation.md](device-validation.md)
+字段、过滤器和 AI 端点见 [photos.md](../photos.md)。设备差异应以实际目标验证为准，记录不支持或未验证的行为；另一设备的成功不能证明兼容。

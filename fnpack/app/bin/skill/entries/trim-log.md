@@ -1,40 +1,30 @@
 ---
 name: trim-log
-description: 处理日志列表、模块枚举、清除、导出、归档及诊断日志复制时使用
+description: 浏览筛选日志、列举日志模块、清除或导出记录、配置归档，并复制或取消诊断日志。
 ---
 
-# trim-log
+# 日志
 
-## 什么时候看这个 skill
+查询日志结构和命令参数时，阅读 `../reference/log.md`。
 
-- 需要浏览日志列表或用模块/级别筛选特定事件
-- 要导出原始日志、清除过期日志或调整归档策略
-- 要复制诊断日志 Debug Log，或取消正在复制的诊断日志任务
-- 需要确认哪些模块在记录日志、哪些日志已经轮转
+## 使用规则
 
-## 先看哪里
+- 筛选和导出时明确选择 `level`、`module`、`locale`。
+- 旧版 `log.*` 与 `appcgi.eventlogger.common.*`（`logger`）可共存，分别解释返回结果。
+- `logger export` 数据量可能较大，先确认输出存储可写。`logger archive set` 会修改策略，先确认预期配置。
+- `diagnostic-log export --output-dir` 指设备侧已挂载路径，例如 `/vol1/<dir>` 或 `/vol00/<mount>/<dir>`。
+- 清空日志或修改归档前，先用分页 `logger list` 查看当前状态。
+- 清除、导出、归档设置及诊断任务控制，均明确传入 `--yes`。
 
-- 查看日志模块与结构：`../reference/log.md`
-- 参数空间参考签名：`logger list [--page <n>] [--page-size <n>] [--level <n>] [--module <n>] [--locale <locale>]`、`logger clear --level <level> --module <module> --yes`、`logger archive set --switch <0|1> --file-path <path> --yes`、`diagnostic-log export --output-dir <path> --yes` 等
-
-## 核心提醒
-
-- `level`、`module` 和 `locale` 控制命令过滤与导出粒度，务必在命令中明确填入合适值
-- 旧版 `log.*` 接口与 `appcgi.eventlogger.common.*`（即 `logger` 系列）并行，请勿混用结果
-- `logger export` 可能导出大量日志，确保目标文件/卷可写；`logger archive set` 会修改归档策略，执行前确认目标配置
-- `diagnostic-log export` 的 `--output-dir` 必须是设备侧已挂载存储路径，例如 `/vol1/<dir>` 或 `/vol00/<mount>/<dir>`
-- `logger list` 可以加 `--page`、`--page-size` 先确认状态，再继续清除或归档
-- 清除、导出、归档设置和诊断日志任务控制都必须显式传 `--yes`
-
-## 常用命令
+## 命令
 
 ```bash
-./scripts/trim-cli logger list --page <n> --page-size <n> --level <n> --module <n> --locale <locale>
-./scripts/trim-cli logger modules --locale <locale>
-./scripts/trim-cli logger clear --level <level> --module <module> --yes
-./scripts/trim-cli logger export --level <level> --module <module> --locale <locale> --yes
-./scripts/trim-cli logger archive set --switch <0|1> --file-path <path> --size-gt <n> --date-unit <n> --date-before <n> --yes
-./scripts/trim-cli logger archive query
-./scripts/trim-cli diagnostic-log export --output-dir /vol1/<dir> --srv-type 0,1,2 --yes
-./scripts/trim-cli diagnostic-log stop --task-id <taskId> --yes
+fnos-cli logger list --page <n> --page-size <n> --level <n> --module <n> --locale <locale>
+fnos-cli logger modules --locale <locale>
+fnos-cli logger clear --level <level> --module <module> --yes
+fnos-cli logger export --level <level> --module <module> --locale <locale> --yes
+fnos-cli logger archive set --switch <0|1> --file-path <path> --size-gt <n> --date-unit <n> --date-before <n> --yes
+fnos-cli logger archive query
+fnos-cli diagnostic-log export --output-dir /vol1/<dir> --srv-type 0,1,2 --yes
+fnos-cli diagnostic-log stop --task-id <taskId> --yes
 ```

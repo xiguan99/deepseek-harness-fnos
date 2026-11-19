@@ -1,72 +1,44 @@
-# 存储危险操作 workflow
+# 高风险存储操作
 
-这个 workflow 只服务于高风险存储写操作。目标是先做只读探测，再判断能不能继续发写请求。
+先探测只读状态，再判断能否执行存储写操作。
 
-## 1. 先判断是不是高风险写操作
+## 1. 识别高风险写操作
 
-以下命令都应先走本 workflow：
+执行 `storage umount/create/stop/add-disk/remove-disk/replace-disk/resize/extend/format/eject/disk-mount/disk-umount` 前使用本流程。`storage request` 只有在端点明确只读时才能免除此风险判断。
 
-- `storage umount`
-- `storage create`
-- `storage stop`
-- `storage add-disk`
-- `storage remove-disk`
-- `storage replace-disk`
-- `storage resize`
-- `storage extend`
-- `storage format`
-- `storage eject`
-- `storage disk-mount`
-- `storage disk-umount`
-- `storage request`，除非你能确认目标端点只读
+`storage mount` 风险较低，但仍需确认池标识和当前状态。可移动磁盘挂载/卸载必须明确磁盘目标。
 
-`storage mount` 风险较低，但仍应先确认目标池标识和当前状态。`storage disk-mount` / `storage disk-umount` 面向可移动磁盘，也应先确认目标磁盘。
+## 2. 只读探测
 
-## 2. 固定先做的只读探测
+1. `fnos-cli storage pools`。
+2. `fnos-cli storage disks`。
+3. 创建存储池前执行 `fnos-cli storage free-disks`。
+4. 按需执行 `fnos-cli storage health <disk>` 或 `storage smart <disk>`。
+5. 可移动设备使用 `storage removable` 和 `storage disk-info <disk>`。
 
-默认顺序：
+确认目标是池 UUID / `trim_*` 标识还是纯磁盘名，并确认其状态及是否可移动。系统盘剩余空间使用返回的 `part`，不用整盘 `name`。区分磁盘操作与存储池操作。
 
-1. `trim-cli storage pools`
-2. `trim-cli storage disks`
-3. 如果要创建存储池，补 `trim-cli storage free-disks`
-4. 按目标需要补 `trim-cli storage health <disk>` 或 `trim-cli storage smart <disk>`
-5. 如果是可移动设备，再看 `trim-cli storage removable` 和 `trim-cli storage disk-info <disk>`
-
-目的：
-
-- 确认目标到底是 pool uuid、`trim_*` 标识，还是具体磁盘名
-- 创建存储池时确认候选盘/分区；系统盘剩余空间候选要用返回的 `part`，不要用整盘 `name`
-- 确认磁盘状态、池状态、是否可移动
-- 避免把磁盘操作误发到存储池，或把存储池操作误发到磁盘
-
-## 3. 密码验证与确认矩阵
+## 3. 密码与确认策略
 
 | 策略 | 命令 |
 | --- | --- |
-| 验证密码并转发密码 | `umount`、`create`、`stop`、`add-disk`、`remove-disk`、`replace-disk`、`resize` |
-| 只验证密码，不转发密码 | `extend`、`format`、`eject` |
-| 仅确认，不做密码验证 | `mount`、`disk-mount`、`disk-umount` |
-| 通用请求 | `request` 默认确认；如果传 `--password`，会验证并转发密码 |
+| 验证并转发密码 | `umount`、`create`、`stop`、`add-disk`、`remove-disk`、`replace-disk`、`resize` |
+| 仅验证，不转发 | `extend`、`format`、`eject` |
+| 仅确认，不验密 | `mount`、`disk-mount`、`disk-umount` |
+| 通用请求 | `request` 需要确认；明确提供的 `--password` 会被验证并转发 |
 
-如果用户没有明确给出密码，且命令属于前两类，不要假设存在默认密码。
-如果要用 `storage request` 调用可能修改设备状态的 `stor.*` 端点，也按高风险写操作处理。
+Agent/非交互写操作明确传入 `--yes`。前两行命令缺少必需密码时停止，不假定默认值。可能修改状态的 `stor.*` 请求按高风险处理。
 
-## 4. 常见误判
+## 4. 区分操作
 
-- `mount` 不是 `stop` 的逆操作；先确认目标池当前状态
-- `extend` 和 `resize` 不是同一件事，不要按字面随意替换
-- `format` / `eject` 面向可移动设备，不是普通池操作
-- 目标池要用 uuid 或 `trim_*` 形式，不要传旧版 `name`
-- 目标磁盘要用纯设备名，如 `sda`、`nvme0n1`，不要传 `/dev/sda`
+- `mount` 不是 `stop` 的逆操作，先检查存储池状态。
+- `extend` 与 `resize` 是不同操作。
+- `format` / `eject` 面向可移动设备，不面向普通存储池。
+- 池使用 UUID 或 `trim_*`，不用旧 `name` 字段。
+- 磁盘使用 `sda`、`nvme0n1` 等纯名称，不用 `/dev/sda`。
 
-## 5. 什么时候必须停下来确认
+## 5. 停止并澄清
 
-- 用户目标不清楚，只说“卸载一下”或“扩一下”，没有给出具体 pool / disk
-- 只读探测结果与用户描述不一致
-- 命令需要密码验证，但用户没有提供密码
-- 设备返回状态显示目标已停止、已卸载、不可扩容或磁盘仍在 standby / 异常状态
+目标池/磁盘不明确、探测结果与用户描述不一致、缺少必需密码，或目标已停止、未挂载、不可扩展以及磁盘休眠/异常时，先停止。
 
-## 6. 下一步
-
-- 已经确认目标和顺序：去看 [../stor.md](../stor.md)
-- 仍有状态歧义：先停在只读探测阶段，不继续发写请求
+确认目标与操作顺序后阅读 [stor.md](../stor.md)。否则保持只读探测，不继续写操作。

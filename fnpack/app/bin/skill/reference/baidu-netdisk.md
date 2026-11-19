@@ -14,7 +14,7 @@ CLI 不实现百度 OAuth。百度账号未授权或授权失效时，必须由�
 
 ## 模块约定
 
-- 先完成 fnOS 的 `trim-cli login`，再调用本模块。
+- 先完成 fnOS 的 `fnos-cli login`，再调用本模块。
 - 百度网盘路径必须以一个 `/` 开头；根路径是 `/`。
 - NAS 写入或读取路径必须是具体 `/vol{n}/...` 路径，不能用聚合根或百度网盘路径代替。
 - 所有写命令都要求 `--yes`。只读命令不要求确认。
@@ -48,12 +48,12 @@ CLI 不实现百度 OAuth。百度账号未授权或授权失效时，必须由�
 ### `status`
 
 ```bash
-trim-cli baidu-netdisk status
+fnos-cli baidu-netdisk status
 ```
 
 返回数据包括：
 
-| Field | Type | Meaning |
+| 字段 | 类型 | 含义 |
 | --- | --- | --- |
 | `authorized` | boolean | 三段授权状态请求均成功时为 `true` |
 | `authorizationPath` | string | NAS 应用授权入口路径 |
@@ -67,7 +67,7 @@ trim-cli baidu-netdisk status
 ### `quota`
 
 ```bash
-trim-cli baidu-netdisk quota
+fnos-cli baidu-netdisk quota
 ```
 
 响应常见字段：`total`、`used`、`free`，单位均为 byte；`expire` 表示近期容量到期状态。
@@ -75,23 +75,23 @@ trim-cli baidu-netdisk quota
 ### `ls`
 
 ```bash
-trim-cli baidu-netdisk ls [dir] [--order name|size|time|ctime|path] [--ascending] [--page N] [--limit N]
+fnos-cli baidu-netdisk ls [dir] [--order name|size|time|ctime|path] [--ascending] [--page N] [--limit N]
 ```
 
-| Option | Required | Default | Meaning |
+| 选项 | 必填 | 默认值 | 含义 |
 | --- | --- | --- | --- |
-| `dir` | no | `/` | 百度网盘目录 |
-| `--order` | no | `time` | 排序字段 |
-| `--ascending` | no | false | 升序；缺省为降序 |
-| `--page` | no | `1` | 页码，从 1 开始 |
-| `--limit` | no | `80` | 每页数量，范围 1 到 1000 |
+| `dir` | 否 | `/` | 百度网盘目录 |
+| `--order` | 否 | `time` | 排序字段 |
+| `--ascending` | 否 | false | 升序；缺省为降序 |
+| `--page` | 否 | `1` | 页码，从 1 开始 |
+| `--limit` | 否 | `80` | 每页数量，范围 1 到 1000 |
 
 文件条目常见字段：`fs_id`、`path`、`server_filename`、`isdir`、`category`、`size`、`server_mtime`、`server_ctime`、`thumbs`。
 
 ### `search`
 
 ```bash
-trim-cli baidu-netdisk search <keyword> [--dir /] [--category video|audio|image|document|application|other|seed] [--recursive] [--limit N]
+fnos-cli baidu-netdisk search <keyword> [--dir /] [--category video|audio|image|document|application|other|seed] [--recursive] [--limit N]
 ```
 
 响应的 `list[]` 使用与 `ls` 相同的文件字段；`has_more=1` 表示仍有后续结果。
@@ -99,7 +99,7 @@ trim-cli baidu-netdisk search <keyword> [--dir /] [--category video|audio|image|
 ### `info`
 
 ```bash
-trim-cli baidu-netdisk info <fsid...> [--dlink]
+fnos-cli baidu-netdisk info <fsid...> [--dlink]
 ```
 
 `fsid` 必须是正整数。`--dlink` 请求临时下载地址，但 CLI 会对响应中的 `dlink` 值脱敏；该命令适合检查元数据，不适合导出裸下载链接。
@@ -107,19 +107,19 @@ trim-cli baidu-netdisk info <fsid...> [--dlink]
 ## 云端文件写操作
 
 ```bash
-trim-cli baidu-netdisk mkdir <path> --yes
-trim-cli baidu-netdisk rm <path...> --yes
-trim-cli baidu-netdisk rename <path> <newName> --yes
-trim-cli baidu-netdisk move <path...> <destDir> [--ondup fail|newcopy|overwrite|skip] --yes
-trim-cli baidu-netdisk copy <path...> <destDir> [--ondup fail|newcopy|overwrite|skip] --yes
+fnos-cli baidu-netdisk mkdir <path> --yes
+fnos-cli baidu-netdisk rm <path...> --yes
+fnos-cli baidu-netdisk rename <path> <newName> --yes
+fnos-cli baidu-netdisk move <path...> <destDir> [--ondup fail|newcopy|overwrite|skip] --yes
+fnos-cli baidu-netdisk copy <path...> <destDir> [--ondup fail|newcopy|overwrite|skip] --yes
 ```
 
-| Field | Location | Meaning | Constraints |
+| 字段 | 位置 | 含义 | 约束 |
 | --- | --- | --- | --- |
-| `path` | positional | 源文件或目录 | 绝对网盘路径，不允许 `.` / `..` 段 |
-| `newName` | positional | 新名称 | 单个名称，不能包含 `/` 或 `\\` |
-| `destDir` | final positional | 目标目录 | `move/copy` 的最后一个参数 |
-| `--ondup` | option | 重名策略 | `fail` 失败、`newcopy` 保留副本、`overwrite` 覆盖、`skip` 跳过 |
+| `path` | 位置参数 | 源文件或目录 | 绝对网盘路径，不允许 `.` / `..` 段 |
+| `newName` | 位置参数 | 新名称 | 单个名称，不能包含 `/` 或 `\\` |
+| `destDir` | 最后一个位置参数 | 目标目录 | `move/copy` 的最后一个参数 |
+| `--ondup` | 选项 | 重名策略 | `fail` 失败、`newcopy` 保留副本、`overwrite` 覆盖、`skip` 跳过 |
 
 文件管理响应可能包含 `taskid` 和逐项 `info[]`；即使顶层 `errno=0`，也应检查逐项 `info[].errno`。
 
@@ -128,26 +128,26 @@ trim-cli baidu-netdisk copy <path...> <destDir> [--ondup fail|newcopy|overwrite|
 ### 创建任务
 
 ```bash
-trim-cli baidu-netdisk upload <targetPath> <localPath...> [--conflict fail|rename|overwrite] --yes
-trim-cli baidu-netdisk download <targetPath> <fsid...> [--conflict fail|rename|overwrite] --yes
+fnos-cli baidu-netdisk upload <targetPath> <localPath...> [--conflict fail|rename|overwrite] --yes
+fnos-cli baidu-netdisk download <targetPath> <fsid...> [--conflict fail|rename|overwrite] --yes
 ```
 
-| Field | Command | Meaning | Constraints |
+| 字段 | 命令 | 含义 | 约束 |
 | --- | --- | --- | --- |
 | `targetPath` | upload | 百度网盘目标目录 | `/` 开头的网盘路径 |
 | `localPath` | upload | NAS 源路径 | 一个或多个 `/vol{n}/...` 路径 |
 | `targetPath` | download | NAS 目标目录 | 具体 `/vol{n}/...` 路径 |
 | `fsid` | download | 百度文件 ID | 一个或多个正整数 |
-| `--conflict` | both | 冲突策略 | `fail=0`、`rename=1`、`overwrite=3` |
+| `--conflict` | 两者 | 冲突策略 | `fail=0`、`rename=1`、`overwrite=3` |
 
 `uploadToCloud` 成功响应按应用合约返回 `data: null`。CLI 会输出结构化的任务提交确认，
 包括 `accepted: true`、`status: "submitted"`、目标路径、NAS 源路径、冲突策略和后端消息，
 不会把裸 `null` 当作结果，也不会声称传输已经完成。要查看进度或失败原因，继续执行：
 
 ```bash
-trim-cli baidu-netdisk task list --transfer upload --state running
-trim-cli baidu-netdisk task list --transfer upload --state completed
-trim-cli baidu-netdisk task info <taskId> --state completed
+fnos-cli baidu-netdisk task list --transfer upload --state running
+fnos-cli baidu-netdisk task list --transfer upload --state completed
+fnos-cli baidu-netdisk task info <taskId> --state completed
 ```
 
 `task list/info` 默认查询 `running`。这里的 `running` 是应用定义的“未完成任务组”，会包含排队、等待、进行中、暂停和失败任务，因此返回 `status=6` 不是过滤失效。`completed` 组只包含 `status=5` 的已完成任务。
@@ -159,8 +159,8 @@ trim-cli baidu-netdisk task info <taskId> --state completed
 ### 保存百度分享链接
 
 ```bash
-trim-cli baidu-netdisk share-save '<shareUrlWithPassword>' /vol1/1000/downloads --all --yes
-trim-cli baidu-netdisk share-save '<shareUrl>' /vol1/1000/downloads --password <code> --fsid <id> [--fsid <id>...] --yes
+fnos-cli baidu-netdisk share-save '<shareUrlWithPassword>' /vol1/1000/downloads --all --yes
+fnos-cli baidu-netdisk share-save '<shareUrl>' /vol1/1000/downloads --password <code> --fsid <id> [--fsid <id>...] --yes
 ```
 
 - `shareUrl` 可传百度分享 URL、22 位分享短码，也可粘贴带“提取码: xxxx”的整段文本；URL 中的 `?pwd=xxxx` 也会自动识别。显式 `--password` 优先。
@@ -173,8 +173,8 @@ trim-cli baidu-netdisk share-save '<shareUrl>' /vol1/1000/downloads --password <
 ### 查询任务
 
 ```bash
-trim-cli baidu-netdisk task list --transfer upload|download [--state running|completed] [--page N] [--page-size N] [--sort-by name|size|status] [--ascending]
-trim-cli baidu-netdisk task info <taskId> [--state running|completed] [--page N] [--page-size N] [--sort-by name|size|status] [--ascending]
+fnos-cli baidu-netdisk task list --transfer upload|download [--state running|completed] [--page N] [--page-size N] [--sort-by name|size|status] [--ascending]
+fnos-cli baidu-netdisk task info <taskId> [--state running|completed] [--page N] [--page-size N] [--sort-by name|size|status] [--ascending]
 ```
 
 任务字段常见为：`id`、`name`、`targetPath`、`savePath`、`size`、`currentSize`、`speed`、`count`、`status`、`failCode`、`createdAt`、`updatedAt`。状态值：`0` 排队、`1` 等待、`3` 进行中、`4` 暂停、`5` 完成、`6` 失败。失败任务必须同时读取 `failCode`；其中 `42610` 表示百度网盘空间不足。
@@ -182,10 +182,10 @@ trim-cli baidu-netdisk task info <taskId> [--state running|completed] [--page N]
 ### 控制任务
 
 ```bash
-trim-cli baidu-netdisk task pause <taskId...> --yes
-trim-cli baidu-netdisk task resume <taskId...> --yes
-trim-cli baidu-netdisk task cancel <taskId...> --yes
-trim-cli baidu-netdisk task clear [--transfer upload|download] --yes
+fnos-cli baidu-netdisk task pause <taskId...> --yes
+fnos-cli baidu-netdisk task resume <taskId...> --yes
+fnos-cli baidu-netdisk task cancel <taskId...> --yes
+fnos-cli baidu-netdisk task clear [--transfer upload|download] --yes
 ```
 
 `clear` 只清理已完成任务。未指定 `--transfer` 时，CLI 依次清理上传和下载任务，并分别返回结果。
@@ -193,13 +193,13 @@ trim-cli baidu-netdisk task clear [--transfer upload|download] --yes
 ## 同步任务
 
 ```bash
-trim-cli baidu-netdisk sync list
-trim-cli baidu-netdisk sync create --direction download|upload --nas-path /vol1/... --netdisk-path /... [--interval 1m|10m|30m] [--conflict fail|rename|overwrite] [--immediate] [--keep-deleted] [--status running|paused] --yes
-trim-cli baidu-netdisk sync update <id> --status running|paused --interval 1m|10m|30m --conflict fail|rename|overwrite [--immediate] --yes
-trim-cli baidu-netdisk sync start|pause|delete <id> --yes
+fnos-cli baidu-netdisk sync list
+fnos-cli baidu-netdisk sync create --direction download|upload --nas-path /vol1/... --netdisk-path /... [--interval 1m|10m|30m] [--conflict fail|rename|overwrite] [--immediate] [--keep-deleted] [--status running|paused] --yes
+fnos-cli baidu-netdisk sync update <id> --status running|paused --interval 1m|10m|30m --conflict fail|rename|overwrite [--immediate] --yes
+fnos-cli baidu-netdisk sync start|pause|delete <id> --yes
 ```
 
-| Field | API value | Meaning |
+| 字段 | API 值 | 含义 |
 | --- | --- | --- |
 | `direction=download` | `1` | 百度网盘同步到 NAS |
 | `direction=upload` | `2` | NAS 同步到百度网盘 |
@@ -212,7 +212,7 @@ trim-cli baidu-netdisk sync start|pause|delete <id> --yes
 
 ## 错误与停手条件
 
-- fnOS session 缺失或目标 NAS 不匹配：先重新执行 `trim-cli login`，不要改用百度账号密码。
+- fnOS session 缺失或目标 NAS 不匹配：先重新执行 `fnos-cli login`，不要改用百度账号密码。
 - 百度授权错误：让用户在 NAS 百度网盘应用页面重新授权，然后重试只读 `status`。
 - HTTP 502 通常表示 NAS 上的百度网盘应用未安装、未启动或网关上游不可达；这是服务可用性问题，不应重试成空结果。先用 `app list` 确认应用，再检查应用状态。
 - HTTP 非 2xx、后端 `code != 0`、XPan `errno != 0`：保留响应中的 `msg`、`errmsg` 或 `show_msg`，不要只按退出码判断。

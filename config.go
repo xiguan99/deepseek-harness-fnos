@@ -1,11 +1,16 @@
 package main
 
 import (
+	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -363,6 +368,7 @@ func ApplyBuiltinSkillConfig() {
 	}
 
 	// 设置脚本与二进制文件可执行权限
+	_ = os.Chmod(filepath.Join(targetSkill, "scripts", "fnos-cli"), 0755)
 	_ = os.Chmod(filepath.Join(targetSkill, "scripts", "trim-cli"), 0755)
 	if binFiles, err := os.ReadDir(filepath.Join(targetSkill, "bin")); err == nil {
 		for _, f := range binFiles {
@@ -370,12 +376,119 @@ func ApplyBuiltinSkillConfig() {
 		}
 	}
 
+	// 预置命令行工具二进制到启动器缓存，避免首跑联网下载
+	seedFnosCliCache(targetSkill, srcMeta.Version)
+
 	if dstMeta.Version == "" {
 		LogInfo("[技能] 飞牛官方内置技能已部署: %s (v%s)", skillName, srcMeta.Version)
 	} else {
 		LogInfo("[技能] 飞牛官方内置技能已升级: %s (v%s → v%s)", skillName, dstMeta.Version, srcMeta.Version)
 	}
 	broadcastSkillAuth()
+}
+
+// fnosRuntimeAsset 对应技能包 runtime-manifest.json 中单个平台的资产声明
+type fnosRuntimeAsset struct {
+	Name         string `json:"name"`
+	Size         int64  `json:"size"`
+	SHA256       string `json:"sha256"`
+	BinarySize   int64  `json:"binarySize"`
+	BinarySHA256 string `json:"binarySha256"`
+}
+
+// seedFnosCliCache 把技能包 bin/ 内压缩好的命令行工具二进制解压到启动器缓存路径
+// （与 scripts/fnos-cli 的 BASE=${XDG_CACHE_HOME:-$HOME/.cache}/fnos-cli/<版本>/<平台> 一致），
+// 使首跑直接命中 ready() 校验，不再触发联网下载。全程离线校验 SHA256，幂等。
+func seedFnosCliCache(targetSkill, version string) {
+	manifestPath := filepath.Join(targetSkill, "runtime-manifest.json")
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return
+	}
+	var rm struct {
+		Version string                    `json:"version"`
+		Assets  map[string]fnosRuntimeAsset `json:"assets"`
+	}
+	if err := json.Unmarshal(data, &rm); err != nil || rm.Version == "" {
+		return
+	}
+	platform := "linux-" + map[string]string{"amd64": "x64", "arm64": "arm64"}[runtime.GOARCH]
+	if platform == "linux-" {
+		return
+	}
+	asset, ok := rm.Assets[platform]
+	if !ok || asset.Name == "" {
+		return
+	}
+	gzPath := filepath.Join(targetSkill, "bin", asset.Name)
+	gzInfo, err := os.Stat(gzPath)
+	if err != nil || gzInfo.Size() != asset.Size {
+		return
+	}
+
+	base := os.Getenv("XDG_CACHE_HOME")
+	if base == "" {
+		base = filepath.Join(globalHomeDir, ".cache")
+	}
+	cacheDir := filepath.Join(base, "fnos-cli", rm.Version, platform)
+	binaryPath := filepath.Join(cacheDir, "fnos-cli")
+
+	// 已就绪则跳过
+	if fi, err := os.Stat(binaryPath); err == nil && fi.Size() == asset.BinarySize && fi.Mode().Perm()&0111 != 0 {
+		return
+	}
+
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
+		LogInfo("[技能] 预置命令行工具缓存失败: %v", err)
+		return
+	}
+	tmpPath := binaryPath + ".seeding"
+	if err := seedGunzip(gzPath, tmpPath, asset.BinarySHA256, asset.BinarySize); err != nil {
+		_ = os.Remove(tmpPath)
+		LogInfo("[技能] 预置命令行工具缓存失败: %v", err)
+		return
+	}
+	if err := os.Rename(tmpPath, binaryPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return
+	}
+	_ = os.Chmod(binaryPath, 0755)
+	LogInfo("[技能] 已预置命令行工具缓存: %s (v%s, %s)", binaryPath, rm.Version, platform)
+}
+
+// seedGunzip 解压 gz 到目标路径，并校验解压后的尺寸与 SHA256
+func seedGunzip(gzPath, dstPath, wantSHA256 string, wantSize int64) error {
+	gzFile, err := os.Open(gzPath)
+	if err != nil {
+		return err
+	}
+	defer gzFile.Close()
+	reader, err := gzip.NewReader(gzFile)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	out, err := os.OpenFile(dstPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0755)
+	if err != nil {
+		return err
+	}
+	hasher := sha256.New()
+	written, err := io.Copy(io.MultiWriter(out, hasher), reader)
+	closeErr := out.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if written != wantSize {
+		return fmt.Errorf("解压尺寸不符: 期望 %d 实际 %d", wantSize, written)
+	}
+	if wantSHA256 != "" && hex.EncodeToString(hasher.Sum(nil)) != wantSHA256 {
+		return fmt.Errorf("SHA256 校验失败")
+	}
+	return nil
 }
 
 type skillManifest struct {

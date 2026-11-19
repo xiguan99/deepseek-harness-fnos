@@ -1,49 +1,47 @@
-# trim-cli App Center 入口
+---
+name: trim-app
+description: 管理已安装应用、应用中心安装、FPK 软件包、更新、应用入口与生命周期操作。
+---
 
-用于管理 fnOS 应用中心中的应用：查看已安装应用、查询单个应用状态、安装、手动安装 fpk、更新、启动、停用和卸载。
+# 应用中心
 
-## 先读规则
+管理 fnOS 应用：列出、查看、安装、安装 FPK、更新、启动、停止和卸载。
+端点及字段见 `../reference/app-center.md`；连接或会话故障见 `trim-shared.md`。
 
-- 写操作必须显式传 `--yes`，包括 `install`、`install-fpk`、`update`、`start`、`stop`、`uninstall`。
-- CLI 默认只自动执行不需要 UI 决策的流程；如果应用需要许可证确认，必须显式传 `--accept-license`；依赖应用变更、运行中的被依赖应用处理等仍应转到 App Center UI。需要自定义安装/升级向导参数时，可显式传 `--custom-parameters`。
-- `app install` / `app update` 会先创建并轮询应用中心下载任务，下载成功后再进入安装/更新任务，并等待任务完成；加 `--dry-run` 时只下载/解析包、读取 info 并执行安全 guard，不启动安装/更新任务。
-- 手动安装 FPK 前优先使用 `app install-fpk <file> --volume-id <id> --dry-run --yes`；它会上传并解析 FPK、检查安装信息和安全 guard，但不会启动安装任务。
-- 已在 NAS 上的 FPK 可用 `app install-fpk --remote-path /vol.../demo.fpk`，走 App Center 的 NAS 文件安装流程；路径必须是具体 `/vol.../*.fpk`，远端文件不能超过 10GB。
-- 如果 FPK 上传返回 `20001`，含义是目标存储空间不可用；先检查传入的 `--volume-id` 是否存在、已挂载且健康。
-- 安装新应用时如知道应用中心 `sourceID`，建议传 `--source-id`；更新已安装应用时 CLI 会从已安装列表解析 `sourceID`。
-- `app install`、`app update`、`app install-fpk` 推荐明确 `--volume-id`；如果省略，CLI 会读取 App Center 默认下载/安装存储空间。没有可用默认值时会拒绝并提示传 `--volume-id`。
-- `app install`、`app update`、`app install-fpk` 可传 `--custom-parameters '<jsonArray>'` 和 `--api-scope '<jsonObject>'`；它们分别对应安装/升级任务的 `customParameters` 和 `systemParameters.apiScope`。如果后端提示需要自定义向导但未提供参数，CLI 会拒绝并提示使用 App Center UI。
-- `app install`、`app update`、`app install-fpk` 可传 `--cancel-on-failure`，当安装或升级任务进入失败状态时，CLI 会尝试调用对应 cancel 接口并把结果写入错误信息。
-- 应用内用户授权路径可用 `app openapi ...` 子命令处理；新增授权路径要求 `--yes` 且路径必须是具体 `/vol...`。
-- 应用入口使用 `app entry list`；当前用户桌面布局使用 `app desktop list`；SAC 应用入口目录使用 `app sac app-store-list`。这些查询走 `appcgi.sac.entry.v1.*` WebSocket CGI，不再使用旧入口 REST。
-- 桌面入口的添加、编辑、删除和排序暂未提供命名命令；如确有需要，使用 `raw` 调用对应 CGI，并按写操作规则传 `--yes`。
-- `app config set-sys` 会校验常用设置字段；默认安装卷、自动更新时间窗口、云安全策略和布尔字段不合法时会在发请求前拒绝。`autoCreateDesktopIcon` 默认不发送，确认后端兼容时才加 `--allow-desktop-icon-field`。
-- 默认会安装后立即启动；不想启动时传 `--no-start`。
+## 规则
 
-## 常用命令
+- 安装、更新和生命周期变更等写操作必须显式传入 `--yes`。
+- 只有无需界面决策的流程才能自动执行。许可确认需要 `--accept-license`；依赖变更和运行中的依赖应用必须在应用中心界面处理。自定义向导输入须显式提供 `--custom-parameters`。
+- `app install` / `app update` 创建并轮询下载任务，再启动并等待安装或更新任务。`--dry-run` 只下载/解析软件包、读取信息并执行安全检查，不启动安装。
+- 本地 FPK 先使用 `app install-fpk <file> --volume-id <id> --dry-run --yes` 预检；这会上传并解析 FPK、检查约束，但不安装。
+- NAS 上的 FPK 使用 `--remote-path /vol.../demo.fpk`，必须是具体 NAS FPK 路径，最大 10GB。
+- 上传错误 `20001` 表示存储不可用；检查 `--volume-id` 对应卷是否存在、已挂载且健康。
+- 新应用已知来源时提供 `--source-id`；更新从已安装列表解析 `sourceID`。
+- 优先显式指定 `--volume-id`；否则 CLI 使用应用中心默认下载/安装卷，没有可用默认卷时拒绝执行。
+- `--custom-parameters '<jsonArray>'` 映射到 `customParameters`；`--api-scope '<jsonObject>'` 映射到 `systemParameters.apiScope`。缺少必需自定义向导输入时停止并提示用户使用应用中心界面。
+- `--cancel-on-failure` 在任务失败时尝试对应取消端点，并在错误中包含取消结果。
+- `app openapi ...` 管理应用用户授权路径；新增需要 `--yes` 和具体 `/vol...` 路径。
+- `app entry list`、`app desktop list` 和 `app sac app-store-list` 使用 `appcgi.sac.entry.v1.*` WebSocket CGI，不使用旧入口 REST。
+- 没有固定命令的桌面入口写操作使用 `raw`，并显式传入 `--yes`。
+- `app config set-sys` 在发送前拒绝无效默认卷、更新时间窗口、云策略和布尔设置。只有确认后端兼容并传入 `--allow-desktop-icon-field` 后才发送 `autoCreateDesktopIcon`。
+- 应用默认在安装后启动；使用 `--no-start` 保持停止状态。
+
+## 命令
 
 ```bash
-./scripts/trim-cli --host <host> --port <port> app list
-./scripts/trim-cli --host <host> --port <port> app status <appName>
-./scripts/trim-cli --host <host> --port <port> app entry list
-./scripts/trim-cli --host <host> --port <port> app desktop list
-./scripts/trim-cli --host <host> --port <port> app sac app-store-list
-./scripts/trim-cli --host <host> --port <port> app install <appName> --version <version> --source-id <sourceID> --volume-id <volumeId> --dry-run --yes
-./scripts/trim-cli --host <host> --port <port> app install <appName> --version <version> --source-id <sourceID> --volume-id <volumeId> --yes
-./scripts/trim-cli --host <host> --port <port> app install <appName> --version <version> --custom-parameters '[{"key":"port","value":8080}]' --api-scope '{"API.User.FileAccess":true}' --volume-id <volumeId> --yes
-./scripts/trim-cli --host <host> --port <port> app install <appName> --version <version> --volume-id <volumeId> --accept-license --cancel-on-failure --yes
-./scripts/trim-cli --host <host> --port <port> app install-fpk <localFile.fpk> --volume-id <volumeId> --dry-run --yes
-./scripts/trim-cli --host <host> --port <port> app install-fpk <localFile.fpk> --volume-id <volumeId> --yes
-./scripts/trim-cli --host <host> --port <port> app install-fpk --remote-path /vol1/1000/demo.fpk --volume-id <volumeId> --dry-run --yes
-./scripts/trim-cli --host <host> --port <port> app update <appName> --version <version> --volume-id <volumeId> --dry-run --yes
-./scripts/trim-cli --host <host> --port <port> app update <appName> --version <version> --volume-id <volumeId> --yes
-./scripts/trim-cli --host <host> --port <port> app openapi add-user-auth-path <appName> /vol1/1000/docs --yes
-./scripts/trim-cli --host <host> --port <port> app start <appName> --yes
-./scripts/trim-cli --host <host> --port <port> app stop <appName> --yes
-./scripts/trim-cli --host <host> --port <port> app uninstall <appName> --yes
+fnos-cli --host <host> --port <port> app list
+fnos-cli --host <host> --port <port> app status <appName>
+fnos-cli app entry list
+fnos-cli app desktop list
+fnos-cli app sac app-store-list
+fnos-cli app install <appName> --version <version> --source-id <sourceID> --volume-id <volumeId> --dry-run --yes
+fnos-cli app install <appName> --version <version> --volume-id <volumeId> --custom-parameters '[{"key":"port","value":8080}]' --api-scope '{"API.User.FileAccess":true}' --yes
+fnos-cli app install <appName> --version <version> --volume-id <volumeId> --accept-license --cancel-on-failure --yes
+fnos-cli app install-fpk <localFile.fpk> --volume-id <volumeId> --dry-run --yes
+fnos-cli app install-fpk --remote-path /vol1/1000/demo.fpk --volume-id <volumeId> --dry-run --yes
+fnos-cli app update <appName> --version <version> --volume-id <volumeId> --dry-run --yes
+fnos-cli app openapi add-user-auth-path <appName> /vol1/1000/docs --yes
+fnos-cli app start <appName> --yes
+fnos-cli app stop <appName> --yes
+fnos-cli app uninstall <appName> --yes
 ```
-
-## 何时继续看 reference
-
-- 需要确认 endpoint、请求字段或安全拒绝条件时，看 `../reference/app-center.md`。
-- 连接失败、session 失效或 token 刷新失败时，看 `trim-shared.md`。

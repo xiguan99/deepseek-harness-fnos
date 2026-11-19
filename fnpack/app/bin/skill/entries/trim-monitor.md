@@ -1,48 +1,37 @@
 ---
 name: trim-monitor
-description: 查询运行态指标如 CPU、内存、网络、磁盘、进程和告警蜂鸣器状态时使用
+description: 查看 CPU、内存、网络、磁盘、进程、服务、电池、风扇、GPU/NPU 与蜂鸣器告警等运行时指标。
 ---
 
-# trim-monitor
+# 监控
 
-## 什么时候看这个 skill
+阅读 `../reference/resmon.md`。运行时指标使用 `monitor`；静态系统标识、机型与配置阅读 `trim-system.md`。
 
-- 需要查看 CPU、内存、网络、磁盘、GPU、NPU、电池、风扇等运行态指标
-- 需要查询进程列表、进程详情、服务状态或系统告警信息
-- 需要查看告警蜂鸣器支持事件、已配置事件或触发原因
-- 想确认某个时刻的系统压力是否属于正常范围
+## 使用规则
 
-## 先看哪里
+- `monitor cpu` / `monitor memory` 返回时间序列采样，结合上下文解释 `usage`、`cores` 等字段。
+- `monitor gen --item` 支持逗号分隔或重复参数，仅接受 `storeSpeed`、`netSpeed`、`cpuBusy`、`memPercent`。
+- `monitor proc-info --pids` 接受逗号分隔的正整数 PID。
+- 大部分命令只读；`monitor mute-beeper` 和 `monitor request` 需要确认或明确传入 `--yes`。
+- `monitor request` 仅接受 `appcgi.resmon.*`；JSON 中不提供 `req` 和 `reqid`。
 
-- 运行态指标参考：`../reference/resmon.md`
-- 当前 CLI 命令集中在 `monitor` 子命令下
-
-## 核心提醒
-
-- 这里只负责运行中的指标，不负责描述系统身份、型号或静态配置
-- `monitor cpu` / `monitor memory` 返回的是时间序列样本，理解它们需要在回复里找 `usage`、`cores` 等字段
-- `monitor gen` 的 `--item` 支持逗号分隔，也可以重复传入；指标只能是 `storeSpeed`、`netSpeed`、`cpuBusy` 或 `memPercent`
-- `monitor proc-info --pids` 只接受正整数 PID，多个 PID 可用逗号分隔
-- 大多数命令是读取型查询；`monitor mute-beeper` 和 `monitor request` 需要确认或 `--yes`
-- `monitor request` 仅允许 `appcgi.resmon.*` 端点，JSON 中不要写 `req` 或 `reqid`
-
-## 常用命令
+## 命令
 
 ```bash
-./scripts/trim-cli monitor cpu
-./scripts/trim-cli monitor memory
-./scripts/trim-cli monitor net
-./scripts/trim-cli monitor disk
-./scripts/trim-cli monitor gen --item storeSpeed,netSpeed --item cpuBusy
-./scripts/trim-cli monitor proc-list
-./scripts/trim-cli monitor proc-info --pids 123,456
-./scripts/trim-cli monitor proc-srv
-./scripts/trim-cli monitor sys-warn
-./scripts/trim-cli monitor battery
-./scripts/trim-cli monitor sys-fan
-./scripts/trim-cli monitor beep-supported
-./scripts/trim-cli monitor beep-events
-./scripts/trim-cli monitor beep-reasons
-./scripts/trim-cli monitor mute-beeper
-./scripts/trim-cli monitor request appcgi.resmon.gen --json '{"item":["cpuBusy"]}'
+fnos-cli monitor cpu
+fnos-cli monitor memory
+fnos-cli monitor net
+fnos-cli monitor disk
+fnos-cli monitor gen --item storeSpeed,netSpeed --item cpuBusy
+fnos-cli monitor proc-list
+fnos-cli monitor proc-info --pids 123,456
+fnos-cli monitor proc-srv
+fnos-cli monitor sys-warn
+fnos-cli monitor battery
+fnos-cli monitor sys-fan
+fnos-cli monitor beep-supported
+fnos-cli monitor beep-events
+fnos-cli monitor beep-reasons
+fnos-cli monitor mute-beeper --yes
+fnos-cli monitor request appcgi.resmon.gen --json '{"item":["cpuBusy"]}' --yes
 ```

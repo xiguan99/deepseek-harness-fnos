@@ -1,116 +1,58 @@
 ---
-name: fnos
-description: Use trim-cli to sign in to and manage fnOS devices, including files, photos, applications, Docker, downloads, logs, monitoring, networking, storage, users, and Baidu Netdisk. Use when the user mentions fnOS, 飞牛 OS, or a mainland China device. Excludes Media APIs and international-edition devices.
+name: fnos-cli
+description: "使用 fnos-cli 授权并管理 fnOS 设备的文件、照片、应用、Docker、下载、日志、监控、网络、存储、用户和百度网盘。用户提到 fnOS、飞牛系统或国内版设备时使用；不适用于国际版设备或 Media API。"
 ---
 
 # fnOS
 
-fnOS 的命令行客户端。通过 HTTP API proxy 访问系统业务接口和原生应用 API，
-覆盖认证、文件、相册、应用中心、Docker、下载、日志、监控、网络、电源、存储和用户管理。
+使用 `fnos-cli` 管理设备。安装与升级都是显式操作；执行前检查实际版本和命令帮助。
 
-## 任务路由
+<!-- standalone:start -->
+## 独立 Skill 启动器
 
-先选最具体的入口，再按入口中的 reference 或 workflow 执行：
-表中没有对应任务时，读取 `manifest.json` 的 `entries`，按入口 frontmatter 的 `description`
-选择产品专属能力。
+从当前加载的 Skill 目录定位 `scripts/fnos-cli`（macOS/Linux）或 `scripts/fnos-cli.cmd`（Windows），使用绝对路径。将本 Skill 示例中的 `fnos-cli` 替换为该路径，保留每个参数及其引号。先执行 `--version` 和相关 `--help`。
 
-| 任务 | 入口 |
-| --- | --- |
-| 登录、session、连接失败、profile | `entries/trim-shared.md`、`reference/_index.md` |
-| 文件、finder、共享目录、ACL、上传下载 | `entries/trim-file.md`、`reference/workflows/file-routing.md` |
-| 相册搜索、AI 搜图、详情、预览 | `entries/trim-photos.md`、`reference/workflows/photos-routing.md` |
-| 应用中心、Docker、下载、日志、监控 | 对应 `entries/` 文件和 `reference/_index.md` |
-| 存储写操作 | `entries/trim-storage.md`、`reference/workflows/storage-dangerous-ops.md` |
-| 用户、用户组、权限 | `entries/trim-user.md`、`reference/user.md` |
-| 真机验证 | `reference/workflows/device-validation.md` |
+首次执行自动下载本机所需的一份固定版本 CLI；提示写入 stderr，成功后复用当前用户缓存。独立执行无需 Node/npm 或全局 CLI。macOS/Linux 需要系统的 curl、gzip、SHA-256 工具（sha256sum 或 shasum）及常用 shell 工具。下载失败、缓存损坏或镜像配置请读[首次运行指南](runtime-setup.md)，按其中步骤恢复后重试原命令。更新 Skill 是显式操作，已有入口不自动升级。
 
-## 安全规则
+Windows 可在 PowerShell 5.1 或 7 中调用 `scripts/fnos-cli.ps1`；`.cmd` 入口使用系统 Windows PowerShell。按当前 shell 规则传递参数，PowerShell 的 JSON 参数建议用单引号。Windows 使用系统 .NET 下载和解压，不需要 Unix 工具；缺少 PowerShell 或执行策略阻止启动时先处理本机环境，再重试原入口。
+<!-- standalone:end -->
 
-- 影视/Media API 当前不属于本 skill；不要探测或调用 CLI 中可能存在的 `media` 命令。
-- 登录唯一使用 OAuth 2.0 Authorization Code + PKCE；不要索取、猜测或生成 NAS 用户名密码、
-  2FA、旧 token 或手工 access-token 登录命令。
-- 固定 OAuth `client_id=YJNMPJUGA9`，按模块申请当前 CLI 所需的 `trim.*` scopes；完整列表见
-  `reference/oauth.md`。授权 URL 不含 `redirect_uri`。
-- 生产环境只使用交互式 `login`：CLI 生成授权链接并保持等待，用户自行在浏览器登录、确认授权、
-  复制一次性 code，再粘贴到 CLI 的 `Authorization code` 提示中。Agent 不代填账号密码、不自动
-  点击授权、不读取页面 code，也不把 code 放进命令参数。
-- session 保存 access/refresh token、过期时间和 OAuth device 信息；敏感值
-  只进入平台安全存储或显式选择的文件后端，不写入普通输出或错误日志。
-- access token 临期会自动刷新；`/ogh/ac/w` 或 `/ogh/ac/h/*` 收到 HTTP 401 时会 refresh 并只重试
-  一次。连续 401 或 refresh 失败时要求重新 OAuth 登录，不循环、不回退旧登录流程。
-- refresh 前会确认当前 profile 的 session 存储可写，并发刷新会复用已写入的较新 token。
-- 保存的 session 缺少当前模块 scope（包括旧 `file photo` 授权）时必须重新登录；refresh 不能扩展
-  已授权 scope。
-- `logout` 清理当前 profile 的 session 和 OAuth pending 文件；不声称服务端令牌已撤销。
-- 远程明文 HTTP 必须显式 `--allow-insecure-http`；自签 HTTPS 使用 `--tls-insecure`。
-- Agent 或非交互流程执行写命令时一律显式传 `--yes`；高风险存储命令还需要必要的密码预校验。
-- 不把 refresh token 或授权 code 发送给无关第三方。
-- DSH 沙箱环境下默认仅允许写入当前工作区；全局凭据统一由 `$HOME/.config/trim-cli` 托管，**严禁覆盖 `TRIM_CLI_CONFIG_DIR`**。若执行写操作或文件下载遇到沙箱访问拒绝（`[sandbox: file access denied]`），可通过 `sandbox_permissions="danger-full-access"` 申请用户单次授权重试。
+## 授权与连接
 
-## 连接选项
+登录、profile、连接失败及授权恢复先读[连接入口](entries/trim-shared.md)和 [OAuth 指南](reference/oauth.md)。字段约定见[公共约定](reference/_conventions.md)，模块使用方式见[索引](reference/_index.md)。
 
-```text
---host <host>                 NAS 主机，默认 localhost
---port <port>                 端口，显式传入时优先
---profile <name>              独立 session profile
---scheme auto|http|https      传输协议，默认 auto
---allow-insecure-http         允许远程明文 HTTP
---tls-insecure                允许 HTTPS 自签证书
-```
-
-未显式传连接参数时，CLI 会复用当前 profile 保存的 host、port、scheme 和 TLS 设置。默认
-loopback 为 `http://localhost:5666`；远程 IP 默认 HTTPS 5667，域名默认 HTTPS 443。
-
-## 认证与登录规范
-
-- **凭据已由宿主系统自动托管**：DSH 环境变量（`PATH`）与授权凭据（`HOME`）已由系统在后台打通，Agent 可直接执行查询与操作命令，无需手动配置。
-- **严禁在会话中执行交互式登录**：会话工具无法向子进程输入验证码，**严禁执行 `trim-cli login`**（会导致命令无限挂起直至超时）。
-- **未授权时引导用户在设置页授权**：若执行命令遇到未授权（`unauthorized`）或凭据失效，必须停止执行命令，并明确回复引导用户前往 **「应用设置」界面的「飞牛官方 TRIM CLI 技能」处点击「登录授权」** 完成绑定。
-
-会话凭据临期时会自动刷新；如需排查会话状态或退出：
+1. Agent 在用户指定的目标和 profile 执行 `login --authorize-only --agent-name '<agent 名>'`（Codex 用 `codex`），CLI 自动生成 `{本机名}-{agent 名}`；把返回链接交给用户。
+2. 用户自行在浏览器登录并授权，把一次性 code 主动发回。用户无需运行终端。
+3. Agent 在同一执行主机、系统用户、配置环境、profile 和连接参数下执行 `login --code`。确认令牌已保存并执行只读验证后才报告连接成功。
 
 ```bash
-trim-cli user info
-trim-cli login --refresh
-trim-cli logout
+fnos-cli --profile home --host <host> --port <port> login --authorize-only --agent-name '<agent>'
+fnos-cli --profile home --host <host> --port <port> login --code '<code>'
+fnos-cli --profile home system info
 ```
 
-## 常用只读命令
+用户密码、2FA 和浏览器确认由用户处理。只接收用户主动发来的 code，不复述、额外落盘或转发。code 可能留在聊天、工具调用和进程参数中；不能承诺无留存。token 与 PKCE verifier 留在 CLI 受控存储，不输出到聊天。
 
-```bash
-trim-cli --profile home system info
-trim-cli --profile home file ls /vol1
-trim-cli --profile home file ls-dir /vol1
-trim-cli --profile home file usage 1
-trim-cli --profile home photos folders
-trim-cli --profile home photos search <keyword> --limit 20
-trim-cli --profile home app list
-trim-cli --profile home docker image ls
-trim-cli --profile home download ls
-trim-cli --profile home monitor cpu
-trim-cli --profile home monitor beep-supported
-trim-cli --profile home storage pools
-trim-cli --profile home user info
-```
+## 使用规则
 
-## 原始请求
+- 两产品的命令、配置、profile 与登录状态独立。新版需重新授权，不读取或迁移旧登录数据，也不自动删除旧凭据。
+- 只使用本产品的 `FNOS_CLI_*` 配置变量。没有显式连接参数时，仅恢复当前产品、当前 profile 的目标；无记录时使用 `localhost:5666`。
+- 文件写操作默认使用具体 `/vol{n}/...` 路径。高风险操作须核实用户意图及命令的 `--yes` 要求；不把设备验收变成默认写操作。
+- `raw` 仅对内置审计过的只读端点免除 `--yes`；未知端点名称不能证明只读。
+- CLI 和 Skill 来自同一版本的包。首次安装、升级或公开文档变化后检查实际 `--version` 和相关 `--help`，不假定 `latest` 已完成传播。
 
-系统业务缺少命名命令时使用 `raw`；Photos 原生 HTTP API 使用 `photos request`。`raw` 只有
-内置、已审计的只读端点可以省略 `--yes`，其他端点（包括未知端点）一律先确认并显式传
-`--yes`。命令仍会校验路径和请求体。
-原始请求结果必须同时检查 HTTP 状态和业务响应 code/终态，不能只看进程退出码。
+## 命令与任务一览
 
-## 输出约定
-
-命名命令默认输出 JSON 计划或业务数据。Photos 搜索的 `total` 才是匹配总数；AI 搜图只有在
-响应提供稳定总数时才能报告精确数量，否则只能报告本次返回条数。预览 URL 通常仍需要
-已登录浏览器 cookie。
-
-`file ls-dir` 汇总所有目录分段为 JSON 数组；`file usage` 汇总容量分类为 JSON 数组，同一分类身份取最后一次结果而不是累加。
-
-## 进一步阅读
-
-- 总索引：`reference/_index.md`
-- OAuth 合约：`reference/oauth.md`
-- Photos API：`reference/photos.md`
-- 连接与真机：`entries/trim-shared.md`、`reference/workflows/device-validation.md`
+- [连接与授权](entries/trim-shared.md): 登录、选择连接目标或 profile、排查登录状态和连接问题，以及应用通用安全规则时使用。
+- [文件](entries/trim-file.md): 列出或搜索文件、上传本地文件、检查共享目录和 ACL，或判断当前用户目录与 NAS 路径语义时使用。
+- [照片](entries/trim-photos.md): 浏览相册扫描目录、搜索照片、查看详情，以及获取缩略图或原图预览地址时使用。
+- [应用中心](entries/trim-app.md): 管理已安装应用、应用中心安装、FPK 软件包、更新、应用入口与生命周期操作。
+- [Docker](entries/trim-docker.md): 查看和管理 Docker 镜像、容器、Compose 项目及长时间运行的生命周期操作。
+- [下载](entries/trim-download.md): 列出、搜索、创建和控制下载任务，查看任务文件、统计和状态变化。
+- [百度网盘](entries/trim-baidu-netdisk.md): 检查百度网盘授权、容量、云端文件、分享保存、NAS 传输和定时同步。
+- [日志](entries/trim-log.md): 浏览筛选日志、列举日志模块、清除或导出记录、配置归档，并复制或取消诊断日志。
+- [监控](entries/trim-monitor.md): 查看 CPU、内存、网络、磁盘、进程、服务、电池、风扇、GPU/NPU 与蜂鸣器告警等运行时指标。
+- [网络](entries/trim-network.md): 管理网络服务开关，包括开启或关闭 SSH，并确认写操作的授权要求。
+- [存储](entries/trim-storage.md): 查看存储池、磁盘与 SMART 数据，或执行挂载、扩容、磁盘替换、格式化等高风险存储写操作。
+- [系统与电源](entries/trim-system.md): 查看静态系统标识、机型、版本、卷、硬件和电源计划，或重启、关闭设备。
+- [用户与权限](entries/trim-user.md): 查看用户、组、登录设备和当前权限，管理用户，或选择正确的已授权 profile。

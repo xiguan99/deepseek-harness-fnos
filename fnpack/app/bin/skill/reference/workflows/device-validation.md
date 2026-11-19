@@ -1,67 +1,55 @@
-# 真机验证 workflow
+# 设备验收
 
-这个 workflow 统一真机验证时的 OAuth 流程、最小探测步骤和写后回归口径。
+Agent 协助 OAuth 授权、最小探测与写后验证时使用本流程。
 
-## 1. OAuth 授权
+## 1. 用户授权
 
-生产环境真机验证只使用交互式 OAuth PKCE 登录：
+按 `../oauth.md` 完成 Agent 协助的 OAuth PKCE：
 
-1. 在交互终端运行 `trim-cli --profile <profile> --host <host> --port <port> login`
-2. CLI 输出授权链接并保持等待
-3. 用户自行打开链接，在浏览器输入账号密码并确认授权
-4. 用户复制页面显示的一次性 code，粘贴到 CLI 的 `Authorization code` 提示
-5. CLI 完成 token 交换并保存当前 profile 的 session
+1. Agent 执行 `fnos-cli --profile <profile> --host <host> --port <port> login --authorize-only --agent-name '<agent>'`。
+2. 把返回的授权链接交给用户，等待回复。
+3. 用户在浏览器打开链接、登录并授权。
+4. 用户把一次性 code 发回 Agent，无需打开终端。
+5. Agent 使用相同 profile 和连接参数执行 `login --code '<code>'`，随后检查 token 持久化并发起只读请求。
 
-Agent 不索取或代填账号密码，不自动点击授权，不读取浏览器页面上的 code，也不把 code 放进
-命令参数。CLI 无法自动打开浏览器时添加 `--no-open`，其他步骤不变。授权 URL 不追加
-`redirect_uri`。
+凭据与授权操作留在用户浏览器中。只交换用户主动提供的 code，不在回复中复述，也不额外写入日志。授权 URL 不包含 `redirect_uri`。
 
-## 2. 固定先做的最小探测
+两步登录和后续请求必须位于相同执行主机、系统用户、配置环境和 `--profile`。远程浏览器、SSH shell 与容器不会自动继承该会话。macOS 后台访问 Keychain 可能需要系统批准。
 
-开始任何写操作前，先做最小只读探测：
+## 2. 最小只读探测
 
-1. 确认上述交互式 `login` 已成功建立目标 profile 的 session；不要在验证流程中预置或轮换账号
-2. 按目标模块执行 1 到 2 个只读命令确认连接和权限
-3. 如果是文件相关，优先用 `file ls` 或对应只读搜索
-4. 如果是存储相关，优先用 `storage pools` / `storage disks`
-5. 如果是 Docker 相关，优先用 `docker stats` 或 `docker container ls`
+任何写操作前：
 
-目的：
+1. 确认 code 交换已建立预期 profile 的会话；验收不包含预先配置或轮换账号。
+2. 执行目标模块的一到两个只读命令，检查连接与权限。
+3. 文件优先使用 `file ls` 或只读搜索。
+4. 存储使用 `storage pools` / `storage disks`。
+5. Docker 使用 `docker stats` 或 `docker container ls`。
 
-- 确认连接目标正确
-- 确认 session 已建立
-- 确认当前账号权限是否符合本次操作
+确认设备目标、会话及当前用户具备足够权限。
 
-## 3. 写操作执行顺序
+## 3. 写操作顺序
 
-建议顺序：
+1. 探测最相关的只读状态。
+2. 执行一次已授权、可解释且可逆的写操作。
+3. 立即回读结果状态。
+4. 适时清理临时资源。
 
-1. 先做与目标最接近的只读探测
-2. 再做单一、可解释、可回滚的写操作
-3. 写完立即补一条只读命令确认结果
-4. 如有临时资源，按需要清理
+同一次验收不混入无关写操作。
 
-不要在同一轮验证里串多个不相关写操作。
+## 4. 写后回读
 
-## 4. 写后回归
+至少使用一项相关检查：
 
-至少补以下一种回归：
+- 文件：`ls`、`search` 或 `share list`。
+- 存储：`pools`、`disks` 或 `removable`。
+- Docker：`image ls`、`container ls` 或 `compose ls`。
+- 用户：`user list` 或 `group list`。
 
-- 文件：重新 `ls` / `search` / `share list`
-- 存储：重新 `pools` / `disks` / `removable`
-- Docker：重新 `image ls` / `container ls` / `compose ls`
-- 用户：重新 `user list` / `group list`
+只有前后状态可客观比较时才报告成功。
 
-如果写前和写后状态无法客观对比，不应宣称验证通过。
+## 5. 停止并确认
 
-## 5. 什么时候必须停下来确认
+OAuth 或 code 交换失败、目标主机缺失、写操作可能影响生产数据/服务，或响应与已知约束冲突并疑似固件差异时，停止并向用户确认。
 
-- OAuth 登录、授权或 code 交换失败
-- 用户没给目标主机，但要求真机验证
-- 写操作可能影响生产数据或正在运行的服务
-- 实际返回与文档约束明显不一致，怀疑设备版本差异
-
-## 6. 下一步
-
-- 验证命令方向已明确：回对应模块 reference 看字段和端点
-- profile、权限或设备状态不明：先停下来补信息，不要继续猜
+选定命令后阅读对应模块参考。先消除 profile、权限与设备状态的不确定性，再继续执行。

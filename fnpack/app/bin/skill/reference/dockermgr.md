@@ -14,12 +14,12 @@ Docker 管理模块，涵盖 Docker 镜像、容器、网络、Compose 项目和
 
 | 用户意图 | 优先命令 | 说明 |
 | --- | --- | --- |
-| 看 Docker 总体状态 | `trim-cli docker stats` | 适合作为进入 Docker 模块的只读探测 |
-| 看镜像 | `trim-cli docker image ls` / `inspect` | 需要镜像详情时再下钻 inspect |
-| 拉镜像 | `trim-cli docker image pull <imageRef> --yes` | 长耗时写操作，执行后应重新确认状态 |
-| 看容器 | `trim-cli docker container ls [--all]` / `inspect` / `stats` / `top` | `ls` 默认只列运行中容器；停止或创建态容器需要 `--all` |
+| 看 Docker 总体状态 | `fnos-cli docker stats` | 适合作为进入 Docker 模块的只读探测 |
+| 看镜像 | `fnos-cli docker image ls` / `inspect` | 需要镜像详情时再下钻 inspect |
+| 拉镜像 | `fnos-cli docker image pull <imageRef> --yes` | 长耗时写操作，执行后应重新确认状态 |
+| 看容器 | `fnos-cli docker container ls [--all]` / `inspect` / `stats` / `top` | `ls` 默认只列运行中容器；停止或创建态容器需要 `--all` |
 | 启停、重启、强杀、删除容器 | `start/stop/restart/kill/rm` | 变更前建议先 inspect 或 ls |
-| 看 Compose 项目 | `trim-cli docker compose ls` | 目前优先作为只读入口 |
+| 看 Compose 项目 | `fnos-cli docker compose ls` | 目前优先作为只读入口 |
 
 ## 常见误判
 
@@ -81,7 +81,7 @@ Docker 管理模块，涵盖 Docker 镜像、容器、网络、Compose 项目和
 未封装为固定子命令的 `appcgi.dockermgr.*` 端点通过以下入口调用：
 
 ```bash
-trim-cli docker request appcgi.dockermgr.<name> --json '<object>' --yes
+fnos-cli docker request appcgi.dockermgr.<name> --json '<object>' --yes
 ```
 
 `--json` 必须是 JSON object，不能包含 `req` 或 `reqid`。泛化请求必须显式传 `--yes`，缺失时 CLI 会在读取 session 或访问网络前直接拒绝，不会进入交互提示；Docker system、network、Compose 和镜像导入导出类操作可能影响运行中服务，调用前应先执行只读探测。
@@ -90,113 +90,113 @@ trim-cli docker request appcgi.dockermgr.<name> --json '<object>' --yes
 
 ### appcgi.dockermgr.containerList
 
-#### Endpoint
+#### 端点
 `appcgi.dockermgr.containerList`
 
-#### Purpose
+#### 用途
 列出 Docker 容器及其运行时摘要信息。
 
-#### Trim CLI Mapping
+#### CLI 映射
 ```
-trim-cli docker container ls [--all]
+fnos-cli docker container ls [--all]
 ```
 
-#### Request
-| Field | Location | Required | Type | Meaning | Constraints / Notes | Example |
+#### 请求
+| 字段 | 位置 | 必填 | 类型 | 含义 | 约束 / 说明 | 示例 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `req` | body | yes | string | Endpoint selector | Fixed value | `appcgi.dockermgr.containerList` |
-| `reqid` | body | yes | string | Request correlation ID | Generated per request | `69ba...` |
-| `all` | body | no | boolean | 是否包含停止和创建态容器 | 仅 `--all` 时发送 `true`；默认只列运行中容器 | `true` |
+| `req` | 请求体 | 是 | string | 端点选择器 | 固定值 | `appcgi.dockermgr.containerList` |
+| `reqid` | 请求体 | 是 | string | 请求关联 ID | 逐请求生成 | `69ba...` |
+| `all` | 请求体 | 否 | boolean | 是否包含停止和创建态容器 | 仅 `--all` 时发送 `true`；默认只列运行中容器 | `true` |
 
-#### Response
-| Field | Always Present | Type | Meaning | Conditions / Notes | Example |
+#### 响应
+| 字段 | 总是存在 | 类型 | 含义 | 条件 / 说明 | 示例 |
 | --- | --- | --- | --- | --- | --- |
-| `data` | no | array / object | 容器列表 | 格式可能因 Docker 版本而异 | `[{"name":"nginx","state":"running"}]` |
-| `result` | no | string | Terminal marker | `succ`/`fail` | `succ` |
-| `errno` | no | number | 错误码 | 失败时出现 | `65534` |
-| `errmsg` | no | string | 错误描述 | | `docker not running` |
+| `data` | 否 | array / object | 容器列表 | 格式可能因 Docker 版本而异 | `[{"name":"nginx","state":"running"}]` |
+| `result` | 否 | string | 终态标记 | `succ`/`fail` | `succ` |
+| `errno` | 否 | number | 错误码 | 失败时出现 | `65534` |
+| `errmsg` | 否 | string | 错误描述 | | `docker not running` |
 
-#### Protocol Notes
+#### 协议说明
 - 签名请求（当 session secret 可用时）。
 - 历史名称别名：`dockermgr.containerList`。
 - 判断容器在 update/stop 后是否仍存在时，使用 `--all` 或 `container inspect <id>`，不要仅凭默认列表下结论。
 
 ### appcgi.dockermgr.stats
 
-#### Endpoint
+#### 端点
 `appcgi.dockermgr.stats`
 
-#### Purpose
+#### 用途
 返回 Docker 聚合统计信息。
 
-#### Trim CLI Mapping
+#### CLI 映射
 ```
-trim-cli docker stats
+fnos-cli docker stats
 ```
 
-#### Response
-| Field | Always Present | Type | Meaning | Conditions / Notes | Example |
+#### 响应
+| 字段 | 总是存在 | 类型 | 含义 | 条件 / 说明 | 示例 |
 | --- | --- | --- | --- | --- | --- |
-| `data` | no | object | 聚合统计 | 包含利用率指标 | `{"cpu":12.5,"mem":47.1}` |
-| `result` | no | string | Terminal marker | `succ`/`fail` | `succ` |
+| `data` | 否 | object | 聚合统计 | 包含利用率指标 | `{"cpu":12.5,"mem":47.1}` |
+| `result` | 否 | string | 终态标记 | `succ`/`fail` | `succ` |
 
-#### Field Semantics
+#### 字段语义
 - 聚合摘要端点；单容器指标使用 `containerStats`。
 
 ### appcgi.dockermgr.image.* 家族
 
-#### Endpoint
+#### 端点
 `appcgi.dockermgr.imageList`、`imagePull`、`imageInspect`、`imageRemove`
 
-#### Purpose
+#### 用途
 管理 Docker 镜像（列表/拉取/检查/删除）。
 
-#### Trim CLI Mapping
+#### CLI 映射
 ```
-trim-cli docker image ls
-trim-cli docker image pull <imageRef> --yes
-trim-cli docker image inspect <imageRef>
-trim-cli docker image rm <imageRef> [--force] [--yes]
+fnos-cli docker image ls
+fnos-cli docker image pull <imageRef> --yes
+fnos-cli docker image inspect <imageRef>
+fnos-cli docker image rm <imageRef> [--force] [--yes]
 ```
 
-#### Request
-| Field | Location | Required | Type | Meaning | Constraints / Notes | Example |
+#### 请求
+| 字段 | 位置 | 必填 | 类型 | 含义 | 约束 / 说明 | 示例 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `req` | body | yes | string | Endpoint selector | 对应具体操作 | `appcgi.dockermgr.imageList` |
-| `reqid` | body | yes | string | Request correlation ID | Generated per request | `69ba...` |
-| `fromImage` | body | conditional | string | 镜像名（imagePull） | 不含 tag 部分 | `nginx` |
-| `tag` | body | conditional | string | 镜像标签（imagePull） | 未指定时默认 `latest` | `latest` |
-| `imageId` | body | conditional | string | 镜像 ID 或引用（inspect/rm） | 可以是后端 ID 或如 `nginx:latest` | `nginx:latest` |
-| `force` | body | no | boolean | 强制删除（imageRemove） | 仅 `--force` 时发送 | `true` |
+| `req` | 请求体 | 是 | string | 端点选择器 | 对应具体操作 | `appcgi.dockermgr.imageList` |
+| `reqid` | 请求体 | 是 | string | 请求关联 ID | 逐请求生成 | `69ba...` |
+| `fromImage` | 请求体 | 有条件 | string | 镜像名（imagePull） | 不含 tag 部分 | `nginx` |
+| `tag` | 请求体 | 有条件 | string | 镜像标签（imagePull） | 未指定时默认 `latest` | `latest` |
+| `imageId` | 请求体 | 有条件 | string | 镜像 ID 或引用（inspect/rm） | 可以是后端 ID 或如 `nginx:latest` | `nginx:latest` |
+| `force` | 请求体 | 否 | boolean | 强制删除（imageRemove） | 仅 `--force` 时发送 | `true` |
 
-#### Field Semantics
+#### 字段语义
 - `imagePull` 分割 `<imageRef>` 为 `fromImage` 和 `tag`；保留 registry 端口，如 `registry:5000/ns/app:1.0` → `fromImage="registry:5000/ns/app"`, `tag="1.0"`。
 - `imageRemove` 默认要求确认，`--yes` 跳过确认。
 - Pull/upgrade 可能是长时间运行的操作。
 
 ### appcgi.dockermgr.container.* 变更/详情家族
 
-#### Endpoint
+#### 端点
 容器创建、生命周期和观察端点
 
-#### Purpose
+#### 用途
 容器创建、启动/停止/重启/强杀/删除、检查、进程列表和统计。
 
-#### Trim CLI Mapping
+#### CLI 映射
 ```
-trim-cli docker container create --image <imageRef> [--name <name>] [--start] [--restart] [--memory <mb>] [--cpu <shares>] [--env <key=value>] [--cmd <arg>] [--port <host:container[/proto]>] [--mount <source:target[:ro|rw]>] --yes
-trim-cli docker container update <containerId> [--restart] [--memory <mb>] [--cpu <shares>] --yes
-trim-cli docker container inspect <containerId>
-trim-cli docker container top <containerId>
-trim-cli docker container stats <containerId>
-trim-cli docker container start <containerId> --yes
-trim-cli docker container stop <containerId> --yes
-trim-cli docker container restart <containerId> --yes
-trim-cli docker container kill <containerId> --yes
-trim-cli docker container rm <containerId> [--force] [--yes]
+fnos-cli docker container create --image <imageRef> [--name <name>] [--start] [--restart] [--memory <mb>] [--cpu <shares>] [--env <key=value>] [--cmd <arg>] [--port <host:container[/proto]>] [--mount <source:target[:ro|rw]>] --yes
+fnos-cli docker container update <containerId> [--restart] [--memory <mb>] [--cpu <shares>] --yes
+fnos-cli docker container inspect <containerId>
+fnos-cli docker container top <containerId>
+fnos-cli docker container stats <containerId>
+fnos-cli docker container start <containerId> --yes
+fnos-cli docker container stop <containerId> --yes
+fnos-cli docker container restart <containerId> --yes
+fnos-cli docker container kill <containerId> --yes
+fnos-cli docker container rm <containerId> [--force] [--yes]
 ```
 
-#### Field Semantics
+#### 字段语义
 
 **containerCreate：**
 - `--image` 必填，映射到请求中的镜像引用
@@ -222,20 +222,20 @@ trim-cli docker container rm <containerId> [--force] [--yes]
 
 **containerRemove：** 通过 `containerId` 标识；`force` 仅在 `--force` 时发送；默认要求确认，`--yes` 跳过。
 
-#### Errors
+#### 错误
 - 常见错误：容器不存在、无效状态转换、权限不足。
 
 ### appcgi.dockermgr.composeList
 
-#### Endpoint
+#### 端点
 `appcgi.dockermgr.composeList`
 
-#### Purpose
+#### 用途
 列出 Docker Compose 项目。
 
-#### Trim CLI Mapping
+#### CLI 映射
 ```
-trim-cli docker compose ls
+fnos-cli docker compose ls
 ```
 
 ## 注意事项

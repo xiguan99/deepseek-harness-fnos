@@ -2,25 +2,25 @@
 
 ## OAuth 登录
 
-trim-cli 使用 OAuth 2.0 Authorization Code + PKCE 建立代理 session，不使用 NAS 用户名密码、
+fnos-cli 使用 OAuth 2.0 Authorization Code + PKCE 建立代理 session，不使用 NAS 用户名密码、
 2FA 登录或旧 token 恢复链。CLI 按用户、文件读写、下载、应用中心、相册、系统、日志、存储和
 Docker 模块申请 `trim.*` scope；完整列表见 `oauth.md`。
 
-生产环境只使用交互式登录：
+Agent 使用两段式授权，详细边界和故障处理见 `oauth.md`：
 
 ```bash
-trim-cli --profile home --host <host> --port <port> login
+fnos-cli --profile home --host <host> --port <port> login --authorize-only --agent-name '<agent 名>'
+fnos-cli --profile home --host <host> --port <port> login --code '<code>'
 ```
 
-CLI 输出授权链接并在当前 profile 保存一次性 PKCE verifier，然后保持运行并等待
-`Authorization code`。用户自行在浏览器输入账号密码、确认授权、复制页面显示的 code，再粘贴
-到 CLI 提示。不要自动填写账号密码、点击授权或读取页面 code，也不要把 code 放进命令参数。
-无法自动打开浏览器时添加 `--no-open`。授权 URL 不包含 `redirect_uri`，不要自行追加；token
-交换成功后一次性 PKCE 文件会被删除。
+Agent 先把 CLI 返回的链接发给用户，用户自行在浏览器登录、授权并把一次性 code 发回 Agent，
+Agent 再执行第二条命令；两步使用同一执行环境、profile 和连接参数。用户无需打开终端。
+不要代填账号密码、点击授权或读取页面 code；只接收用户主动提供的 code，不额外回显或记录。
+授权 URL 不包含 `redirect_uri`，不要自行追加；token 交换成功并保存后清理一次性 pending。
 
 Session 保存以下认证信息：
 
-| Field | Meaning |
+| 字段 | 含义 |
 | --- | --- |
 | `accessToken` | 代理业务请求的 Bearer token |
 | `refreshToken` | access token 刷新凭据 |
@@ -32,7 +32,7 @@ Session 保存以下认证信息：
 普通已认证命令会在 access token 临近过期时自动调用 refresh。也可以显式执行：
 
 ```bash
-trim-cli --profile home login --refresh
+fnos-cli --profile home login --refresh
 ```
 
 refresh 响应没有返回新 refresh token 时，CLI 保留已有 refresh token。刷新前会先确认当前
@@ -42,19 +42,19 @@ profile 的 session 存储可写；预检失败时停止当前命令，不发送
 `logout` 只清除当前 profile 的本地 session，不表示服务端 token 已撤销：
 
 ```bash
-trim-cli --profile home logout
+fnos-cli --profile home logout
 ```
 
 ## 当前用户与列表
 
 ```bash
-trim-cli user info
-trim-cli user list
-trim-cli user list --mode group --group Users
-trim-cli user request user.list --json '{"limit":100,"offset":0}'
+fnos-cli user info
+fnos-cli user list
+fnos-cli user list --mode group --group Users
+fnos-cli user request user.list --json '{"limit":100,"offset":0}' --yes
 ```
 
-| Command | Endpoint | Important output |
+| 命令 | 端点 | 重要输出 |
 | --- | --- | --- |
 | `user info` | `user.info` | `userInfo.user`、`uid`、`admin` |
 | `user list` | `user.list` | 用户数组、总数和分页字段 |
@@ -67,15 +67,15 @@ trim-cli user request user.list --json '{"limit":100,"offset":0}'
 ## 用户写操作
 
 ```bash
-trim-cli user add <user> [--password <initial-password>] [--groups Users] [--set-admin] --yes
-trim-cli user mod <user> [--new-name <name>] [--password <new-password>] [--groups Users] --yes
-trim-cli user del <user> --yes
-trim-cli user change-password <user> --yes
-trim-cli user unfreeze <user> --yes
-trim-cli user set-admin <user> --admin true --yes
+fnos-cli user add <user> [--password <initial-password>] [--groups Users] [--set-admin] --yes
+fnos-cli user mod <user> [--new-name <name>] [--password <new-password>] [--groups Users] --yes
+fnos-cli user del <user> --yes
+fnos-cli user change-password <user> --yes
+fnos-cli user unfreeze <user> --yes
+fnos-cli user set-admin <user> --admin true --yes
 ```
 
-| Command | Endpoint | Main request fields |
+| 命令 | 端点 | 主要请求字段 |
 | --- | --- | --- |
 | `user add` | `user.add` | `user`、`password`、`groups`、可选联系信息和管理员标记 |
 | `user mod` | `user.mod` | `user` 加显式提供的变更字段 |
@@ -92,18 +92,18 @@ trim-cli user set-admin <user> --admin true --yes
 ## 用户组
 
 ```bash
-trim-cli user group list
-trim-cli user group info <group>
-trim-cli user group users <group>
-trim-cli user group add <group> [--comment <text>] --yes
-trim-cli user group mod <group> [--new-name <name>] [--comment <text>] --yes
-trim-cli user group del <group> --yes
-trim-cli user group set-users <group> --users <user> --yes
-trim-cli user group add-users <group> --users <user> --yes
-trim-cli user group del-users <group> --users <user> --yes
+fnos-cli user group list
+fnos-cli user group info <group>
+fnos-cli user group users <group>
+fnos-cli user group add <group> [--comment <text>] --yes
+fnos-cli user group mod <group> [--new-name <name>] [--comment <text>] --yes
+fnos-cli user group del <group> --yes
+fnos-cli user group set-users <group> --users <user> --yes
+fnos-cli user group add-users <group> --users <user> --yes
+fnos-cli user group del-users <group> --users <user> --yes
 ```
 
-| Command | Endpoint | Main request fields |
+| 命令 | 端点 | 主要请求字段 |
 | --- | --- | --- |
 | `group list` | `user.groupList` | 无 |
 | `group info` | `user.groupInfo` | `group` |
@@ -121,8 +121,8 @@ trim-cli user group del-users <group> --users <user> --yes
 ## 登录设备
 
 ```bash
-trim-cli user login-devices
-trim-cli user request user.listLoginDevice
+fnos-cli user login-devices
+fnos-cli user request user.listLoginDevice --yes
 ```
 
 登录设备列表是用户管理数据，不参与 CLI 的 OAuth PKCE 登录。不要根据设备列表尝试旧的
@@ -131,7 +131,7 @@ trusted-device/2FA 登录流程。
 ## 错误处理
 
 - `saved proxy session is required`：先完成 OAuth 登录。
-- OAuth pending 缺失或过期：重新运行完整的交互式 `login`，不要单独拼装兑换命令。
+- OAuth pending 缺失或过期：按 `oauth.md` 重新执行 `login --authorize-only --agent-name <agent>`，等待用户回传新 code 后再交换，不重试旧 code。
 - refresh 失败或 refresh token 缺失：重新运行 OAuth 登录，不回退到账号密码。
 - refresh 返回后 session 最终写入失败：不要盲目复用旧 refresh token；它可能已被轮换，应重新登录。
 - 权限错误：先用 `user info` 确认 `admin`，不要自动提升权限。

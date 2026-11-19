@@ -1,29 +1,21 @@
 ---
 name: trim-network
-description: 管理网络相关开关，当前覆盖 SSH 服务开关
+description: 管理网络服务开关，包括开启或关闭 SSH，并确认写操作的授权要求。
 ---
 
-# trim-network
+# 网络
 
-## 什么时候看这个 skill
+字段约束阅读 `../reference/network.md`；连接与会话规则阅读 `trim-shared.md`。
 
-- 需要开启或关闭 fnOS 的 SSH 服务
-- 需要确认网络类写操作的确认参数和风险
+## 使用规则
 
-## 先看哪里
+- 开启 SSH 是安全敏感操作，必须得到用户明确授权。
+- 确认授权后，Agent 命令明确传入 `--yes`。
+- `--enable` 和 `--disable` 必须且只能选择一个。
 
-- 端点和字段：`../reference/network.md`
-- 通用连接、登录和 session：`trim-shared.md`
-
-## 使用原则
-
-- `network ssh switch --enable` 会打开 SSH 服务，属于安全敏感操作，默认必须二次确认。
-- 确认用户明确授权后，才可以使用 `--yes` 跳过交互确认。
-- `--enable` 与 `--disable` 必须二选一，不能同时传，也不能都不传。
-
-## 常用命令
+## 命令
 
 ```bash
-./scripts/trim-cli network ssh switch --enable
-./scripts/trim-cli network ssh switch --disable --yes
+fnos-cli network ssh switch --enable --yes
+fnos-cli network ssh switch --disable --yes
 ```

@@ -1,42 +1,31 @@
 ---
 name: trim-storage
-description: 当任务涉及存储池、磁盘、SMART、挂载卸载、扩容替盘、格式化或其他高风险存储写操作时使用
+description: 查看存储池、磁盘与 SMART 数据，或执行挂载、扩容、磁盘替换、格式化等高风险存储写操作。
 ---
 
-# trim-storage
+# 存储
 
-## 什么时候看这个 skill
+写操作前阅读 `../reference/workflows/storage-dangerous-ops.md`；API 契约阅读 `../reference/stor.md`。
 
-- 用户要看存储池、磁盘、SMART、可移动设备
-- 用户要做 `mount`、`umount`、`create`、`resize`、`format`、`eject`
-- 你需要先判断目标到底是 pool 还是 disk
-- 需要调用尚未封装为固定命令的 `stor.*` 端点
+## 使用规则
 
-## 先看哪里
+- 池使用 UUID 或 `trim_*` 标识；磁盘使用 `sda`、`nvme0n1` 等纯设备名。
+- 高风险写操作前先执行 `storage pools` 和 `storage disks`。
+- 创建存储池前执行 `storage free-disks`。使用系统盘剩余空间时，以返回的 `part` 为目标，不用整盘名称。
+- 缺少必需的验证密码时停止，不假定默认密码。
+- 优先使用固定命令；`storage request` 会拒绝已有固定命令覆盖的端点。
 
-- 危险操作 workflow：`../reference/workflows/storage-dangerous-ops.md`
-- 存储模块 reference：`../reference/stor.md`
-
-## 核心提醒
-
-- pool 使用 uuid 或 `trim_*`
-- disk 使用纯设备名，如 `sda`、`nvme0n1`
-- 高风险写操作前先执行 `storage pools` 和 `storage disks`
-- 创建存储池前补 `storage free-disks`；系统盘剩余空间候选用返回的 `part`
-- 缺密码时不要继续猜需要验密的命令
-- 优先使用固定命令；只有固定命令缺失时再用 `storage request`，固定端点会被拒绝
-
-## 常用命令
+## 命令
 
 ```bash
-./scripts/trim-cli storage overview
-./scripts/trim-cli storage pools
-./scripts/trim-cli storage disks
-./scripts/trim-cli storage free-disks
-./scripts/trim-cli storage disk-info <disk>
-./scripts/trim-cli storage disk-mount <disk>
-./scripts/trim-cli storage disk-umount <disk>
-./scripts/trim-cli storage smart <disk>
-./scripts/trim-cli storage health <disk>
-./scripts/trim-cli storage request stor.getConf --json '{"uuid":"trim_pool"}' --yes
+fnos-cli storage overview
+fnos-cli storage pools
+fnos-cli storage disks
+fnos-cli storage free-disks
+fnos-cli storage disk-info <disk>
+fnos-cli storage disk-mount <disk> --yes
+fnos-cli storage disk-umount <disk> --yes
+fnos-cli storage smart <disk>
+fnos-cli storage health <disk>
+fnos-cli storage request stor.getConf --json '{"uuid":"trim_pool"}' --yes
 ```
