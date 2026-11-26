@@ -5,3 +5,4 @@ fnpack/app/bin/deepseek.harness
 fnpack/app/deepseek-harness.tar.gz
 fnpack/app/.version
 *.fpk
+__pycache__/

@@ -30,7 +30,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 
 HOP_BY_HOP = {
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
@@ -263,17 +263,34 @@ def _cmp_semver(a: str, b: str) -> int:
     return 0
 
 
-def _http_get_json(url: str, proxy: str = "", timeout: float = 10.0):
-    handlers = []
+def _http_get_json(url: str, proxy: str = "", timeout: float = 10.0, direct_fallback: bool = True):
+    """取 JSON。走代理失败时自动直连重试，返回 (数据, 走的路径)。
+
+    现场教训：面板开了代理之后，代理链路本身会抖（SOCKS5 握手时好时坏），
+    一抖就把整条查询报成 502/超时，用户看到的是「读取升级信息失败」。
+    能直连的域一律留一条直连退路，并在返回里带上实际走的路径，便于自查。
+    """
+    def attempt(use_proxy: str):
+        handlers = []
+        if use_proxy:
+            handlers.append(urllib.request.ProxyHandler({"http": use_proxy, "https": use_proxy}))
+        opener = urllib.request.build_opener(*handlers)
+        req = urllib.request.Request(url, headers={
+            "Accept": "application/json",
+            "User-Agent": f"harness-panel/{VERSION}",
+        })
+        with opener.open(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
     if proxy:
-        handlers.append(urllib.request.ProxyHandler({"http": proxy, "https": proxy}))
-    opener = urllib.request.build_opener(*handlers)
-    req = urllib.request.Request(url, headers={
-        "Accept": "application/json",
-        "User-Agent": f"harness-panel/{VERSION}",
-    })
-    with opener.open(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+        try:
+            return attempt(proxy), "proxy"
+        except Exception as exc:
+            if not direct_fallback:
+                raise
+            log(f"代理取数失败，改直连重试：{url}（{exc}）")
+            return attempt(""), "direct_after_proxy_fail"
+    return attempt(""), "direct"
 
 
 def _resolve_channels(info: dict):
@@ -585,16 +602,18 @@ class ShellHandler(BaseHTTPRequestHandler):
         if cfg.get("proxy_dsh_runtime") and cfg.get("network_proxy"):
             proxy = str(cfg.get("network_proxy")).strip()
 
-        cache_key = f"{registry}|{proxy}"
+        cache_key = f"{registry}|{proxy}|{cfg.get('version') or ''}"
         now = time.time()
+        refresh = "refresh=1" in (urlsplit(self.path).query or "")
         with _CHANNEL_LOCK:
             cached = _CHANNEL_CACHE
-            if cached["data"] and cached["key"] == cache_key and now - cached["at"] < 120:
+            if (cached["data"] and cached["key"] == cache_key and now - cached["at"] < 120
+                    and not refresh):
                 self._send_json(cached["data"])
                 return
 
         try:
-            info = _http_get_json(registry.rstrip("/") + "/" + NPM_PACKAGE, proxy=proxy)
+            info, via = _http_get_json(registry.rstrip("/") + "/" + NPM_PACKAGE, proxy=proxy)
         except Exception as exc:
             self._json_error(f"查询 {registry} 失败：{exc}")
             return
@@ -609,6 +628,9 @@ class ShellHandler(BaseHTTPRequestHandler):
             "channels": channels,
             "tags": tags,
             "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            # 取数实际走的路径：代理抖了会留 direct_after_proxy_fail，便于在面板日志里自查
+            "via": via,
+            "proxy_used": bool(proxy),
         }
         with _CHANNEL_LOCK:
             _CHANNEL_CACHE.update({"key": cache_key, "at": now, "data": data})

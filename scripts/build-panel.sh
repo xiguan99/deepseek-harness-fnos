@@ -31,6 +31,9 @@ case "$VERSION" in
   *) red "✗ 面板版本应为 1.x（独立版本线），实际 $VERSION"; exit 1 ;;
 esac
 [ -f "$SRC/app/fnshell.py" ] || { red "✗ 缺少 app/fnshell.py"; exit 1; }
+# 面板自报版本必须与包版本一致：不一致时「已安装版本」和「检查更新」会各说一套
+SHELL_VER="$(grep -m1 -E '^VERSION = ' "$SRC/app/fnshell.py" | sed 's/.*"\(.*\)".*/\1/')"
+[ "$SHELL_VER" = "$VERSION" ] || { red "✗ fnshell.py 的 VERSION=$SHELL_VER 与 manifest 的 version=$VERSION 不一致"; exit 1; }
 [ -d "$SRC/app/panel_dist" ] || { red "✗ 缺少 app/panel_dist（先跑前端构建）"; exit 1; }
 
 # wizard 必须是真的配置：飞牛应用中心解析空数组会空指针（APP_INSTALL_FAILED_PKG_EXCEPTION，
