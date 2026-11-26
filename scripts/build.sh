@@ -93,9 +93,10 @@ npm -v
 echo "应用版本 ${APP_VER} / 运行时 ${RT_VER}"
 
 log "1/6 版本与图标自检"
-python3 "${ROOT}/scripts/check-version.py" --root "${ROOT}" \
-  --runtime-dir "${BUILD}/runtime" --tar "${BUILD}/deepseek-harness.tar.gz" 2>/dev/null \
-  || python3 "${ROOT}/scripts/check-version.py" --root "${ROOT}" --runtime-dir "${BUILD}/runtime"
+# 这一步只查源码树内的声明（manifest/README/端口/桌面入口）。
+# 运行时那条（package.json 依赖 + tar 内实物版本）留到第 2 步重建之后查：
+# 升版本时构建树里的旧 runtime/tar 必然还是上一版，先查会直接判死。
+python3 "${ROOT}/scripts/check-version.py" --root "${ROOT}"
 python3 "${ROOT}/scripts/check-icon.py" --src "${ROOT}/fnpack" --name "deepseek.harness" \
   --apps-root /vol1/1000/work/deepseek/fnos-apps
 

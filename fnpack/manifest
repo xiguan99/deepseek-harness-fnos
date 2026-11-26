@@ -1,5 +1,9 @@
 appname               = deepseek.harness
-version               = 0.2.2-rc.4.1
+<<<<<<< HEAD
+version               = 0.2.2-rc.5
+=======
+version               = 0.2.2-rc.5
+>>>>>>> 554fc37 (release: 本体 0.2.2-rc.5（跟随官方 rc.5；启动层注入 Node 自动选族 2s 兜底，构建自检顺序修正）)
 display_name          = DeepSeek Harness
 desc                  = DeepSeek Harness 的飞牛 OS 原生打包版，分本体与面板两个应用：<br/>• 本体（本应用）：DSH 服务 + Web UI，桌面图标直达 http://主机IP:2299/<br/>• 面板（另装 harness-panel）：概览、工作区、授权、插件、快照、日志、设置 共 7 个页面<br/>版本口径：与官方运行时版本严格一致（如 0.2.2-rc.1），不挂第四段补丁号（四段版本升级判定不可靠）
 platform              = x86
